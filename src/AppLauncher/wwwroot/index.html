@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>App Launcher</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">▶</span>
+      <div>
+        <h1>App Launcher</h1>
+        <small id="serverInfo">bağlanıyor…</small>
+      </div>
+    </div>
+    <div class="actions">
+      <input id="search" type="search" placeholder="Ara…">
+      <button class="btn ghost" id="btnHistoryAll">Tüm geçmiş</button>
+      <button class="btn ghost" id="btnConfig">apps.json</button>
+      <button class="btn primary" id="btnAdd">+ Yeni uygulama</button>
+    </div>
+  </header>
+
+  <div id="configError" class="banner error hidden"></div>
+
+  <main>
+    <div id="apps" class="grid"></div>
+    <p id="empty" class="empty hidden">Henüz uygulama yok. “+ Yeni uygulama” ile ekleyin.</p>
+  </main>
+
+  <!-- Uygulama ekle/düzenle -->
+  <dialog id="dlgApp">
+    <form id="appForm" method="dialog">
+      <h2 id="appFormTitle">Uygulama</h2>
+      <div class="cols">
+        <label>Id <input name="appId" required pattern="[A-Za-z0-9_.\-]+" placeholder="aylik-rapor"></label>
+        <label>Ad <input name="appName" placeholder="Aylık Rapor"></label>
+      </div>
+      <label>Açıklama <input name="description"></label>
+      <label>Çalıştırılacak dosya (exe, bat, cmd, ps1, dll, py)
+        <input name="path" required placeholder="C:\Uygulamalar\Rapor\Rapor.exe">
+      </label>
+      <label>Argümanlar <input name="arguments" placeholder="--mod aylik"></label>
+      <label>Çalışma klasörü <input name="workingDirectory" placeholder="(boşsa dosyanın klasörü)"></label>
+      <div class="cols">
+        <label>Zaman aşımı (dk, 0 = yok) <input name="timeoutMinutes" type="number" min="0" value="0"></label>
+        <div class="checks">
+          <label class="inline"><input type="checkbox" name="enabled" checked> Zamanlama aktif</label>
+          <label class="inline"><input type="checkbox" name="allowConcurrentRuns"> Aynı anda birden fazla çalışabilir</label>
+        </div>
+      </div>
+      <label>Ortam değişkenleri (her satıra ANAHTAR=DEĞER)
+        <textarea name="env" rows="2" placeholder="ORTAM=PROD"></textarea>
+      </label>
+
+      <fieldset>
+        <legend>Zamanlama</legend>
+        <div class="cols">
+          <label>Tip
+            <select name="schedType">
+              <option value="None">Zamanlama yok (elle)</option>
+              <option value="Daily">Her gün</option>
+              <option value="Weekly">Haftalık (seçili günler)</option>
+              <option value="Monthly">Aylık – ayın belirli günü</option>
+              <option value="MonthlyLastDay">Aylık – ayın son günü</option>
+              <option value="MonthlyWeekday">Aylık – ayın n. / son haftanın günü</option>
+              <option value="Cron">Cron ifadesi (gelişmiş)</option>
+            </select>
+          </label>
+          <label data-show="Daily Weekly Monthly MonthlyLastDay MonthlyWeekday">Saat
+            <input name="time" type="time" value="22:00">
+          </label>
+        </div>
+        <div data-show="Weekly" class="days" id="weekDays"></div>
+        <label data-show="Monthly">Ayın günü
+          <input name="dayOfMonth" type="number" min="1" max="31" value="28">
+        </label>
+        <div class="cols" data-show="MonthlyWeekday">
+          <label>Hangi
+            <select name="week">
+              <option value="1">1.</option><option value="2">2.</option>
+              <option value="3">3.</option><option value="4">4.</option>
+              <option value="Last" selected>Son</option>
+            </select>
+          </label>
+          <label>Gün <select name="dayOfWeek" id="dowSelect"></select></label>
+        </div>
+        <label data-show="Cron">Cron (dk saat gün ay haftagünü)
+          <input name="cron" placeholder="0 22 * * 4L">
+        </label>
+        <div id="preview" class="preview"></div>
+      </fieldset>
+
+      <div id="formErrors" class="banner error hidden"></div>
+      <div class="dlg-actions">
+        <button type="button" class="btn ghost" data-close>Vazgeç</button>
+        <button type="submit" class="btn primary" value="save">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Geçmiş -->
+  <dialog id="dlgHistory" class="wide">
+    <h2 id="historyTitle">Geçmiş</h2>
+    <div class="table-wrap"><table id="historyTable"></table></div>
+    <div class="dlg-actions"><button class="btn ghost" data-close>Kapat</button></div>
+  </dialog>
+
+  <!-- Log -->
+  <dialog id="dlgLog" class="wide">
+    <h2 id="logTitle">Log</h2>
+    <pre id="logContent"></pre>
+    <div class="dlg-actions">
+      <label class="inline"><input type="checkbox" id="logFollow" checked> Sona kaydır</label>
+      <button class="btn ghost" data-close>Kapat</button>
+    </div>
+  </dialog>
+
+  <!-- Ham config -->
+  <dialog id="dlgConfig" class="wide">
+    <h2>apps.json</h2>
+    <small id="configPath"></small>
+    <textarea id="configText" spellcheck="false"></textarea>
+    <div id="configErrors" class="banner error hidden"></div>
+    <div class="dlg-actions">
+      <button class="btn ghost" data-close>Vazgeç</button>
+      <button class="btn primary" id="btnConfigSave">Kaydet</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>
