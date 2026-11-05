@@ -83,6 +83,7 @@ Her dosya için ilgili klasöre sağ tık → **Add → New Item**. C# dosyalar�
 | `Services/ProcessRunner.cs` | `src/AppLauncher/Services/ProcessRunner.cs` |
 | `Services/ScheduleHelper.cs` | `src/AppLauncher/Services/ScheduleHelper.cs` |
 | `Services/SchedulerService.cs` | `src/AppLauncher/Services/SchedulerService.cs` |
+| `Services/StateStore.cs` | `src/AppLauncher/Services/StateStore.cs` |
 | `wwwroot/index.html` | `src/AppLauncher/wwwroot/index.html` |
 | `wwwroot/style.css` | `src/AppLauncher/wwwroot/style.css` |
 | `wwwroot/app.js` | `src/AppLauncher/wwwroot/app.js` |

@@ -45,6 +45,7 @@ if (authEnabled)
 builder.Services.AddSingleton<LoginThrottle>();
 builder.Services.AddSingleton<AppStore>();
 builder.Services.AddSingleton<RunHistory>();
+builder.Services.AddSingleton<StateStore>();
 builder.Services.AddSingleton<ProcessRunner>();
 builder.Services.AddHostedService<SchedulerService>();
 

@@ -15,7 +15,9 @@ public sealed class ProcessRunner
         public required Process Process { get; init; }
         public required StreamWriter Writer { get; init; }
         public volatile bool StopRequested;
+        public volatile bool ShutdownRequested;
         public volatile bool TimedOut;
+        public Task? Monitor;
     }
 
     private readonly ConcurrentDictionary<string, ActiveRun> _active = new();
@@ -23,10 +25,13 @@ public sealed class ProcessRunner
     private readonly RunHistory _history;
     private readonly ILogger<ProcessRunner> _log;
     private readonly Encoding _outputEncoding;
+    private readonly IHostApplicationLifetime _lifetime;
 
-    public ProcessRunner(RunHistory history, IOptions<LauncherOptions> options, ILogger<ProcessRunner> log)
+    public ProcessRunner(RunHistory history, IOptions<LauncherOptions> options, ILogger<ProcessRunner> log,
+        IHostApplicationLifetime lifetime)
     {
         _history = history;
+        _lifetime = lifetime;
         _log = log;
         _outputEncoding = options.Value.ResolveOutputEncoding();
     }
@@ -101,7 +106,7 @@ public sealed class ProcessRunner
             _history.Add(record);
             _log.LogInformation("{App} başlatıldı (PID {Pid}, {Trigger}).", app.Id, process.Id, trigger);
 
-            _ = Task.Run(() => MonitorAsync(active, app.TimeoutMinutes));
+            active.Monitor = Task.Run(() => MonitorAsync(active, app.TimeoutMinutes));
             return record;
         }
     }
@@ -114,6 +119,37 @@ public sealed class ProcessRunner
         WriteLine(active.Writer, $"=== Kullanıcı tarafından durduruluyor{(stoppedBy is null ? "" : " (" + stoppedBy + ")")}...");
         Kill(active.Process);
         return true;
+    }
+
+    /// <summary>
+    /// Servis kapanırken çağrılır: çalışan tüm süreçleri sonlandırır ve kayıtlarını "yarıda kaldı" olarak
+    /// işaretler. Böylece ResumeInterrupted açık olanlar servis açılınca yeniden başlatılabilir.
+    /// </summary>
+    public async Task StopAllForShutdownAsync(TimeSpan timeout)
+    {
+        var list = _active.Values.ToList();
+        if (list.Count == 0) return;
+        _log.LogWarning("Servis kapanıyor, çalışan {Count} uygulama sonlandırılıyor.", list.Count);
+
+        foreach (var a in list)
+        {
+            a.ShutdownRequested = true;
+            WriteLine(a.Writer, "=== Servis kapanıyor, süreç sonlandırılıyor...");
+            Kill(a.Process);
+        }
+
+        var monitors = list.Select(a => a.Monitor).OfType<Task>().ToArray();
+        await Task.WhenAny(Task.WhenAll(monitors), Task.Delay(timeout));
+
+        // Zamanında bitmeyenleri yine de işaretle
+        foreach (var a in list.Where(a => a.Record.Status == RunStatus.Running))
+        {
+            a.Record.Status = RunStatus.Interrupted;
+            a.Record.Recoverable = true;
+            a.Record.EndedAt = DateTimeOffset.Now;
+            a.Record.Error ??= "Servis/sunucu kapanırken yarıda kaldı.";
+            _history.Updated(a.Record);
+        }
     }
 
     private async Task MonitorAsync(ActiveRun active, int timeoutMinutes)
@@ -138,10 +174,21 @@ public sealed class ProcessRunner
             }
 
             rec.ExitCode = p.HasExited ? p.ExitCode : null;
+            // Servis kapanırken (ör. Windows update sonrası yeniden başlatma) biten süreç: yarıda kaldı say.
+            // Windows kapanışta süreci bizden önce sonlandırmış olabilir; o yüzden kapanış sırasındaki
+            // başarısız çıkışlar da yarıda kaldı sayılır.
+            var shuttingDown = active.ShutdownRequested
+                || (_lifetime.ApplicationStopping.IsCancellationRequested && rec.ExitCode != 0);
             rec.Status = active.StopRequested ? RunStatus.Stopped
+                       : shuttingDown ? RunStatus.Interrupted
                        : active.TimedOut ? RunStatus.TimedOut
                        : rec.ExitCode == 0 ? RunStatus.Succeeded
                        : RunStatus.Failed;
+            if (rec.Status == RunStatus.Interrupted)
+            {
+                rec.Recoverable = true;
+                rec.Error ??= "Servis/sunucu kapanırken yarıda kaldı.";
+            }
         }
         catch (Exception ex)
         {

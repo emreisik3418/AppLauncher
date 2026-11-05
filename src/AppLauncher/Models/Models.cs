@@ -28,6 +28,27 @@ public sealed class AppDefinition
 
     public Dictionary<string, string> EnvironmentVariables { get; set; } = new();
 
+    // ---- Süreklilik / yeniden başlatma ----
+
+    /// <summary>
+    /// true ise uygulama hep çalışır durumda tutulur: servis açılınca başlatılır, kapanır/çökerse
+    /// KeepAliveDelaySeconds sonra yeniden başlatılır. Elle "Durdur" denirse tekrar "Çalıştır" denene kadar beklemeye alınır.
+    /// Zamanlama ile birlikte kullanılamaz.
+    /// </summary>
+    public bool KeepAlive { get; set; }
+
+    /// <summary>KeepAlive uygulaması kapandıktan sonra yeniden başlatmadan önce beklenecek süre (sn).</summary>
+    public int KeepAliveDelaySeconds { get; set; } = 10;
+
+    /// <summary>Sunucu/servis yeniden başlarken yarıda kalan çalıştırma, servis açılınca baştan bir kez daha çalıştırılır.</summary>
+    public bool ResumeInterrupted { get; set; }
+
+    /// <summary>Servis kapalıyken gelen zamanlama, servis açılınca bir kez çalıştırılır.</summary>
+    public bool RunMissed { get; set; }
+
+    /// <summary>ResumeInterrupted / RunMissed için sınır: bundan daha eski kesinti/kaçırmalar telafi edilmez (saat).</summary>
+    public int RecoveryWindowHours { get; set; } = 6;
+
     public ScheduleDefinition? Schedule { get; set; }
 }
 
@@ -65,7 +86,14 @@ public sealed class ScheduleDefinition
     public string? Cron { get; set; }
 }
 
-public enum RunTrigger { Manual, Schedule }
+public enum RunTrigger
+{
+    Manual,     // arayüzden elle
+    Schedule,   // zamanlama
+    KeepAlive,  // sürekli çalışma (kapandığı için yeniden)
+    Resume,     // yeniden başlatmada yarıda kaldığı için baştan
+    CatchUp     // servis kapalıyken kaçırılan zamanlamanın telafisi
+}
 
 public enum RunStatus { Running, Succeeded, Failed, Stopped, TimedOut, Interrupted }
 
@@ -85,4 +113,7 @@ public sealed class RunRecord
     public int? ProcessId { get; set; }
     public string? LogFile { get; set; }
     public string? Error { get; set; }
+
+    /// <summary>Sunucu/servis kapanırken yarıda kaldı ve henüz açılışta değerlendirilmedi.</summary>
+    public bool Recoverable { get; set; }
 }

@@ -19,7 +19,11 @@ public sealed class LauncherOptions
     public int HistoryLimit { get; set; } = 500;
 
     /// <summary>Zamanlayıcının kontrol aralığı (saniye).</summary>
-    public int CheckIntervalSeconds { get; set; } = 15;
+    public int CheckIntervalSeconds { get; set; } = 5;
+
+    /// <summary>Servis açıldıktan sonra kurtarma / sürekli çalışma başlatmadan önce beklenecek süre (sn).
+    /// Sunucu yeni açıldığında ağ, veritabanı vb. hazır olsun diye.</summary>
+    public int StartupDelaySeconds { get; set; } = 30;
 
     /// <summary>Windows Authentication ve izinli siciller.</summary>
     public Security.AuthOptions Auth { get; set; } = new();

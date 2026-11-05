@@ -43,7 +43,8 @@ public sealed class RunHistory
         {
             r.Status = RunStatus.Interrupted;
             r.EndedAt ??= DateTimeOffset.Now;
-            r.Error ??= "Servis yeniden başlatıldığı için takip edilemedi.";
+            r.Error ??= "Servis beklenmedik şekilde kapandığı için takip edilemedi.";
+            r.Recoverable = true;
         }
         Save();
     }
@@ -60,6 +61,19 @@ public sealed class RunHistory
 
     /// <summary>Kayıt nesnesi değiştikten sonra dosyaya yazmak için çağrılır.</summary>
     public void Updated(RunRecord record) => Save();
+
+    /// <summary>Açılışta yeniden başlatılmayı bekleyen yarıda kalmış kayıtları verir ve işaretlerini kaldırır.</summary>
+    public List<RunRecord> TakeRecoverable()
+    {
+        List<RunRecord> list;
+        lock (_lock)
+        {
+            list = _runs.Where(r => r.Recoverable).ToList();
+            foreach (var r in list) r.Recoverable = false;
+        }
+        if (list.Count > 0) Save();
+        return list;
+    }
 
     public RunRecord? Get(string id)
     {

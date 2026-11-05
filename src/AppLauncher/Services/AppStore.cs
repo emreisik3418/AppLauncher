@@ -133,6 +133,17 @@ public sealed class AppStore : IDisposable
             if (string.IsNullOrWhiteSpace(a.Path)) errors.Add($"{label}: Path (çalıştırılacak dosya) boş olamaz.");
             if (a.TimeoutMinutes < 0) errors.Add($"{label}: TimeoutMinutes negatif olamaz.");
 
+            if (a.KeepAlive)
+            {
+                if (a.Schedule is not null && a.Schedule.Type != ScheduleType.None)
+                    errors.Add($"{label}: 'Sürekli çalışsın' seçiliyken zamanlama tanımlanamaz (zamanlamayı 'yok' yapın).");
+                a.AllowConcurrentRuns = false;
+            }
+            if (a.KeepAliveDelaySeconds is < 1 or > 3600)
+                errors.Add($"{label}: KeepAliveDelaySeconds 1 ile 3600 arasında olmalı.");
+            if (a.RecoveryWindowHours is < 1 or > 720)
+                errors.Add($"{label}: RecoveryWindowHours 1 ile 720 arasında olmalı.");
+
             var schedErr = ScheduleHelper.Validate(a.Schedule);
             if (schedErr is not null) errors.Add($"{label}: {schedErr}");
         }

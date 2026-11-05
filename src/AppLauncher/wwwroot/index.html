@@ -65,7 +65,7 @@
       <div class="cols">
         <label>Zaman aşımı (dk, 0 = yok) <input name="timeoutMinutes" type="number" min="0" value="0"></label>
         <div class="checks">
-          <label class="inline"><input type="checkbox" name="enabled" checked> Zamanlama aktif</label>
+          <label class="inline"><input type="checkbox" name="enabled" checked> Otomatik çalıştırma aktif</label>
           <label class="inline"><input type="checkbox" name="allowConcurrentRuns"> Aynı anda birden fazla çalışabilir</label>
         </div>
       </div>
@@ -73,7 +73,26 @@
         <textarea name="env" rows="2" placeholder="ORTAM=PROD"></textarea>
       </label>
 
-      <fieldset>
+      <fieldset class="recovery">
+        <legend>Süreklilik ve yeniden başlatma</legend>
+        <label class="inline"><input type="checkbox" name="keepAlive"> Sürekli çalışsın – kapanır veya çökerse yeniden başlat</label>
+        <div data-ka="on" class="indent">
+          <label>Yeniden başlatmadan önce bekle (sn) <input name="keepAliveDelaySeconds" type="number" min="1" max="3600" value="10"></label>
+          <small class="help">Servis açılınca otomatik başlar. Elle “Durdur” derseniz tekrar “Çalıştır” diyene kadar beklemeye alınır.
+            Art arda 1 dakikadan kısa sürede kapanırsa bekleme süresi artırılır (en fazla 5 dk).</small>
+        </div>
+        <div data-ka="off">
+          <label class="inline"><input type="checkbox" name="resumeInterrupted"> Sunucu/servis yeniden başlarken yarıda kalırsa baştan çalıştır</label>
+          <label class="inline"><input type="checkbox" name="runMissed"> Sunucu kapalıyken kaçırılan zamanlamayı telafi et</label>
+          <div class="indent" id="recoveryWindowBox">
+            <label>En fazla şu kadar gecikmeyle (saat) <input name="recoveryWindowHours" type="number" min="1" max="720" value="6"></label>
+            <small class="help">Servis bundan uzun süre kapalı kaldıysa yarıda kalan / kaçırılan çalıştırma yapılmaz.
+              Yeniden çalıştırma baştan başlar, uygulama kaldığı yerden devam etmez.</small>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset id="schedFieldset">
         <legend>Zamanlama</legend>
         <div class="cols">
           <label>Tip

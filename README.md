@@ -10,6 +10,7 @@ Kendi yazdığınız uygulamaları (exe, bat, cmd, ps1, dll, py) bir web arayüz
 - `apps.json` elle değiştirildiğinde **otomatik yeniden yüklenir**. Dosya bozuksa son geçerli hali kullanılır, hata arayüzde gösterilir
 - Zamanlama tipleri: her gün, haftalık, ayın N. günü, ayın son günü, ayın 1./2./3./4./**son** X günü, serbest cron
 - Zaman aşımı, eşzamanlı çalışmayı engelleme, ortam değişkenleri
+- **Sunucu yeniden başlatmalarına dayanıklılık**: sürekli çalışan uygulamalar, yarıda kalanı yeniden başlatma, kaçırılan zamanlamayı telafi
 - Windows Service olarak kurulum, hata halinde otomatik yeniden başlatma
 - **Kurumsal login sayfası**: sicil + domain şifresi veya tek tıkla Windows oturumu ile giriş, çıkış yap
 - Yalnızca config'te listelenen siciller (veya AD grupları) girebilir; kim neyi başlattı/durdurdu kaydedilir
@@ -99,6 +100,31 @@ Konum: uygulama klasöründeki `data\apps.json` (servis kurulumunda `C:\Services
 | `enabled` | `false` ise zamanlama çalışmaz, elle çalıştırma yine mümkündür |
 | `timeoutMinutes` | `0` = sınırsız. Aşılırsa süreç ağacı sonlandırılır |
 | `allowConcurrentRuns` | `false` iken önceki çalıştırma bitmeden yenisi başlamaz |
+| `keepAlive` | `true` ise uygulama hep çalışır tutulur (aşağıya bakın). Zamanlama ile birlikte kullanılamaz |
+| `keepAliveDelaySeconds` | Sürekli çalışan uygulama kapandıktan sonra yeniden başlatmadan önce beklenecek süre (varsayılan 10) |
+| `resumeInterrupted` | Sunucu/servis yeniden başlarken yarıda kalan çalıştırma, servis açılınca baştan bir kez çalıştırılır |
+| `runMissed` | Servis kapalıyken gelen zamanlama, servis açılınca bir kez çalıştırılır |
+| `recoveryWindowHours` | Servis bundan uzun süre kapalı kaldıysa yukarıdaki iki telafi yapılmaz (varsayılan 6) |
+
+## Sunucu yeniden başlatıldığında (Windows update vb.)
+
+Her uygulama için formdaki **Süreklilik ve yeniden başlatma** bölümünden seçilir. Varsayılan olarak hepsi kapalıdır.
+
+**1. Sürekli çalışsın (`keepAlive`)**: Hep açık kalması gereken uygulamalar içindir.
+- Servis açılınca otomatik başlar.
+- Uygulama kendi kendine kapanırsa veya çökerse `keepAliveDelaySeconds` sonra yeniden başlatılır.
+- Uygulama 1 dakikadan kısa sürede art arda kapanıyorsa (ör. yapılandırma hatası) bekleme süresi her seferinde ikiye katlanır, en fazla 5 dakikaya çıkar. Uygulama bir kez düzgün çalışınca bekleme sıfırlanır.
+- Arayüzden **Durdur** derseniz uygulama **Beklemede** olur ve siz tekrar **Çalıştır** diyene kadar yeniden başlatılmaz. Bu durum servis yeniden başlasa da korunur.
+
+**2. Yarıda kalanı yeniden başlat (`resumeInterrupted`)**: Örneğin 22:00'de başlayan iş, 23:00'teki update restart'ında kesildiyse servis açılınca iş baştan bir kez daha çalıştırılır. Uygulama kaldığı yerden devam edemez, baştan başlar. İki kez çalışması sorun çıkarmayacak işlerde kullanın.
+
+**3. Kaçırılanı telafi et (`runMissed`)**: Planlanan zaman servis kapalıyken geldiyse (ör. ayın 28'i 09:00'da sunucu kapalıydı) servis açılınca bir kez çalıştırılır. Birden fazla zamanlama kaçırıldıysa da yalnızca bir kez çalışır.
+
+Notlar:
+- Servis açıldıktan sonra kurtarma işlemleri `StartupDelaySeconds` (varsayılan 30 sn) kadar beklenip öyle başlar. Bu bekleme, sunucu yeni açıldığında ağın ve veritabanının hazır olması içindir.
+- Servis durdurulurken (`sc.exe stop`, güncelleme, Windows kapanışı) çalışan uygulamalar **sonlandırılır** ve geçmişte "Yarıda kaldı" olarak işaretlenir. Bu yüzden servisi güncellerken uzun süren bir iş varsa bitmesini bekleyin veya o uygulamada `resumeInterrupted` seçeneğini açın.
+- Bu çalıştırmalar geçmişte **Tetikleyen** sütununda "Sürekli çalışma", "Yarıda kalan, yeniden" veya "Kaçırılan, telafi" olarak görünür.
+- Kaçırılan zamanlamaları bulmak için zamanlayıcının en son çalıştığı an `data\state.json` dosyasında tutulur.
 
 ### Zamanlama örnekleri
 
@@ -184,7 +210,8 @@ Oturum anahtarları `data\keys` klasöründe (DPAPI ile şifreli) tutulur. Bu sa
   "TimeZone": "",
   "OutputEncoding": "utf-8",
   "HistoryLimit": 500,
-  "CheckIntervalSeconds": 15
+  "CheckIntervalSeconds": 5,
+  "StartupDelaySeconds": 30
 }
 ```
 
@@ -194,12 +221,14 @@ Bu dosyadaki değerler varsayılanlardır. Sunucuya özel değerleri (Urls, Auth
 - **TimeZone**: Boşsa sunucunun saat dilimi. Örnek: `Turkey Standard Time`.
 - **OutputEncoding**: Log'larda Türkçe karakterler bozuk görünürse `ibm857` veya `windows-1254` deneyin.
 - **HistoryLimit**: Tutulacak kayıt sayısı. Eski kayıtların log dosyaları da silinir.
+- **CheckIntervalSeconds**: Zamanlayıcının ve sürekli çalışma kontrolünün kaç saniyede bir yapılacağı.
+- **StartupDelaySeconds**: Servis açıldıktan sonra kurtarma ve sürekli çalışma başlatılmadan önce beklenecek süre.
 
 ## Bilmeniz gerekenler
 
 - **Servis hesabı:** Servis varsayılan olarak `LocalSystem` ile çalışır. Uygulamalarınız ağ paylaşımına, veritabanına (Windows auth) veya kullanıcı profiline erişiyorsa servisi bir kullanıcı hesabıyla çalıştırın. `services.msc` → AppLauncher → Oturum Aç sekmesini kullanabilir ya da `sc.exe config AppLauncher obj= "DOMAIN\kullanici" password= "..."` komutunu çalıştırabilirsiniz.
 - **Pencereli uygulamalar:** Servisler masaüstü oturumunda pencere açamaz (Session 0). Konsol veya arka plan uygulamaları sorunsuz çalışır. Ekranda pencere göstermesi gereken uygulamalar görünmez.
-- **Kaçırılan çalıştırmalar:** Servis kapalıyken veya makine kapalıyken geçen zamanlamalar sonradan telafi edilmez.
+- **Kaçırılan çalıştırmalar:** Varsayılan olarak servis kapalıyken geçen zamanlamalar telafi edilmez. Telafi isteniyorsa uygulamada `runMissed` açılmalı (yukarıya bakın).
 - **Loglar:** `data\logs\<id>\` altında her çalıştırma için bir dosya bulunur. Servisin kendi logları Windows Olay Görüntüleyicisi'ndeki (Application) AppLauncher kaynağında tutulur.
 - **Çıkış kodu:** `0` başarılı, diğer değerler hatalı kabul edilir.
 
@@ -213,7 +242,8 @@ src/AppLauncher/
   Models/Models.cs           AppDefinition, ScheduleDefinition, RunRecord
   Services/AppStore.cs       apps.json okuma/yazma + dosya izleme
   Services/ScheduleHelper.cs Zamanlama → cron dönüşümü (Cronos)
-  Services/SchedulerService.cs  Arka planda zamanı gelenleri başlatır
+  Services/SchedulerService.cs  Zamanlama, sürekli çalışma, açılışta kurtarma
+  Services/StateStore.cs     Son kontrol zamanı ve beklemedeki uygulamalar (data/state.json)
   Services/ProcessRunner.cs  Süreç başlatma/durdurma, loglama, zaman aşımı
   Services/RunHistory.cs     Çalıştırma geçmişi (data/history.json)
   Security/WindowsAuth.cs    Cookie + Windows kimlik doğrulama, izinli sicil kontrolü

@@ -33,10 +33,10 @@ public static class Endpoints
         });
 
         // ---- Uygulamalar ----
-        api.MapGet("/apps", (AppStore store, ProcessRunner runner, RunHistory history, IOptions<LauncherOptions> opt) =>
+        api.MapGet("/apps", (AppStore store, ProcessRunner runner, RunHistory history, StateStore state, IOptions<LauncherOptions> opt) =>
         {
             var tz = opt.Value.ResolveTimeZone();
-            return store.GetAll().Select(a => BuildView(a, runner, history, tz));
+            return store.GetAll().Select(a => BuildView(a, runner, history, state, tz));
         });
 
         api.MapGet("/apps/{id}", (string id, AppStore store) =>
@@ -63,10 +63,11 @@ public static class Endpoints
             return Results.NoContent();
         });
 
-        api.MapPost("/apps/{id}/run", (string id, AppStore store, ProcessRunner runner, ClaimsPrincipal user) =>
+        api.MapPost("/apps/{id}/run", (string id, AppStore store, ProcessRunner runner, StateStore state, ClaimsPrincipal user) =>
         {
             var def = store.Get(id);
             if (def is null) return Results.NotFound();
+            state.Resume(def.Id); // sürekli çalışma beklemedeyse tekrar devreye al
             try
             {
                 return Results.Ok(runner.Start(def, RunTrigger.Manual, UserName(user)));
@@ -81,8 +82,14 @@ public static class Endpoints
         api.MapGet("/runs", (string? appId, int? take, RunHistory history) =>
             history.Query(appId, take ?? 50));
 
-        api.MapPost("/runs/{runId}/stop", (string runId, ProcessRunner runner, ClaimsPrincipal user) =>
-            runner.Stop(runId, UserName(user)) ? Results.Ok() : Results.NotFound(new { error = "Çalışan bir süreç bulunamadı." }));
+        api.MapPost("/runs/{runId}/stop", (string runId, ProcessRunner runner, RunHistory history, AppStore store,
+            StateStore state, ClaimsPrincipal user) =>
+        {
+            // Sürekli çalışan uygulama elle durdurulursa, tekrar "Çalıştır" denene kadar yeniden başlatılmaz.
+            var rec = history.Get(runId);
+            if (rec is not null && store.Get(rec.AppId)?.KeepAlive == true) state.Pause(rec.AppId);
+            return runner.Stop(runId, UserName(user)) ? Results.Ok() : Results.NotFound(new { error = "Çalışan bir süreç bulunamadı." });
+        });
 
         api.MapGet("/runs/{runId}/log", (string runId, RunHistory history) =>
         {
@@ -134,7 +141,7 @@ public static class Endpoints
         });
     }
 
-    private static object BuildView(AppDefinition a, ProcessRunner runner, RunHistory history, TimeZoneInfo tz)
+    private static object BuildView(AppDefinition a, ProcessRunner runner, RunHistory history, StateStore state, TimeZoneInfo tz)
     {
         string? cron = null;
         DateTimeOffset? nextRun = null;
@@ -143,7 +150,7 @@ public static class Endpoints
         {
             cron = ScheduleHelper.ToCron(a.Schedule);
             var expr = ScheduleHelper.GetExpression(a.Schedule);
-            if (expr is not null && a.Enabled) nextRun = expr.GetNextOccurrence(DateTimeOffset.Now, tz);
+            if (expr is not null && a.Enabled && !a.KeepAlive) nextRun = expr.GetNextOccurrence(DateTimeOffset.Now, tz);
         }
         catch (FormatException ex)
         {
@@ -154,7 +161,8 @@ public static class Endpoints
         {
             app = a,
             cron,
-            scheduleText = ScheduleHelper.Describe(a.Schedule),
+            scheduleText = a.KeepAlive ? "Sürekli çalışır (kapanırsa yeniden başlatılır)" : ScheduleHelper.Describe(a.Schedule),
+            keepAlivePaused = a.KeepAlive && state.IsPaused(a.Id),
             scheduleError,
             nextRun,
             activeRuns = runner.ActiveRuns(a.Id),

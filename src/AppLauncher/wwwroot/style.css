@@ -83,6 +83,14 @@ dialog input:not([type=checkbox]), dialog select, dialog textarea {
 .checks { display: flex; flex-direction: column; gap: 6px; justify-content: center; }
 fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 6px 0 0; }
 legend { padding: 0 6px; color: var(--muted); }
+fieldset + fieldset { margin-top: 12px; }
+fieldset.recovery label.inline { margin-bottom: 8px; }
+.indent { margin: 2px 0 8px 24px; }
+.indent label { margin-bottom: 4px; max-width: 260px; }
+.help { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.b-ka { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); }
+.flags { display: flex; flex-wrap: wrap; gap: 4px; }
+.flag { font-size: 11.5px; padding: 1px 7px; border-radius: 6px; background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
 .days { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .days label { flex-direction: row; align-items: center; gap: 4px; margin: 0; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); }
 .preview { font-size: 13px; background: var(--bg); border-radius: 8px; padding: 8px 10px; }

@@ -3,6 +3,10 @@
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const DAY_TR = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Pazartesi başlasın
+const TRIGGER_TR = {
+  Manual: "Elle", Schedule: "Zamanlama", KeepAlive: "Sürekli çalışma",
+  Resume: "Yarıda kalan, yeniden", CatchUp: "Kaçırılan, telafi"
+};
 const STATUS_TR = {
   Running: "Çalışıyor", Succeeded: "Başarılı", Failed: "Hatalı",
   Stopped: "Durduruldu", TimedOut: "Zaman aşımı", Interrupted: "Yarıda kaldı"
@@ -93,8 +97,16 @@ function cardHtml(v) {
   const statusBadge = running
     ? `<span class="badge b-Running">Çalışıyor</span>`
     : last ? `<span class="badge b-${last.status}">${STATUS_TR[last.status] ?? last.status}</span>` : "";
-  const enabledBadge = a.schedule && a.schedule.type !== "None" && !a.enabled
-    ? `<span class="badge b-off">Zamanlama kapalı</span>` : "";
+  const auto = a.keepAlive || (a.schedule && a.schedule.type !== "None");
+  const enabledBadge = auto && !a.enabled ? `<span class="badge b-off">Otomatik çalıştırma kapalı</span>` : "";
+  const kaBadge = a.keepAlive
+    ? (v.keepAlivePaused ? `<span class="badge b-Stopped" title="Elle durduruldu. Çalıştır deyince sürekli çalışma devam eder.">Beklemede</span>`
+                         : `<span class="badge b-ka">Sürekli</span>`)
+    : "";
+  const flags = [];
+  if (!a.keepAlive && a.resumeInterrupted) flags.push("Yarıda kalırsa yeniden başlar");
+  if (!a.keepAlive && a.runMissed && a.schedule && a.schedule.type !== "None") flags.push("Kaçırılanı telafi eder");
+  if (flags.length && (a.resumeInterrupted || a.runMissed)) flags.push(`en fazla ${a.recoveryWindowHours ?? 6} sa`);
 
   return `
   <article class="card ${a.enabled ? "" : "disabled"}" data-id="${esc(a.id)}">
@@ -103,7 +115,7 @@ function cardHtml(v) {
         <h3>${esc(a.name)}</h3>
         <div class="id">${esc(a.id)}</div>
       </div>
-      <div>${statusBadge} ${enabledBadge}</div>
+      <div>${kaBadge} ${statusBadge} ${enabledBadge}</div>
     </div>
     ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ""}
     <div class="path">${esc(a.path)} ${esc(a.arguments)}</div>
@@ -111,7 +123,8 @@ function cardHtml(v) {
       <dt>Zamanlama</dt><dd>${esc(v.scheduleText)}${v.cron ? ` <span class="id">(${esc(v.cron)})</span>` : ""}
         ${v.scheduleError ? `<br><span style="color:var(--err)">${esc(v.scheduleError)}</span>` : ""}</dd>
       <dt>Sonraki</dt><dd>${fmt(v.nextRun)}</dd>
-      <dt>Son çalışma</dt><dd>${last ? `${fmt(last.startedAt)} · ${duration(last.startedAt, last.endedAt)}${last.exitCode != null ? " · kod " + last.exitCode : ""}` : "–"}</dd>
+      <dt>Son çalışma</dt><dd>${last ? `${fmt(last.startedAt)} · ${duration(last.startedAt, last.endedAt)}${last.exitCode != null ? " · kod " + last.exitCode : ""}${last.trigger && last.trigger !== "Manual" && last.trigger !== "Schedule" ? " · " + TRIGGER_TR[last.trigger] : ""}` : "–"}</dd>
+      ${flags.length ? `<dt>Kurtarma</dt><dd class="flags">${flags.map(f => `<span class="flag">${esc(f)}</span>`).join("")}</dd>` : ""}
     </dl>
     <div class="card-actions">
       ${running
@@ -139,7 +152,10 @@ $("#apps").addEventListener("click", async (e) => {
       await api(`/api/apps/${encodeURIComponent(id)}/run`, { method: "POST" });
       toast(`${view.app.name} başlatıldı`);
     } else if (act === "stop") {
-      if (!confirm("Süreç sonlandırılsın mı?")) return;
+      const msg = view.app.keepAlive
+        ? "Süreç sonlandırılsın mı?\n\nSürekli çalışma, siz tekrar Çalıştır diyene kadar beklemeye alınacak."
+        : "Süreç sonlandırılsın mı?";
+      if (!confirm(msg)) return;
       await api(`/api/runs/${btn.dataset.run}/stop`, { method: "POST" });
       toast("Durdurma isteği gönderildi");
     } else if (act === "log") {
@@ -217,6 +233,17 @@ form.addEventListener("input", (e) => {
 });
 form.schedType.addEventListener("change", updateScheduleFields);
 
+function updateRecoveryFields() {
+  const ka = form.keepAlive.checked;
+  form.querySelectorAll("[data-ka=on]").forEach(el => el.classList.toggle("hidden", !ka));
+  form.querySelectorAll("[data-ka=off]").forEach(el => el.classList.toggle("hidden", ka));
+  $("#schedFieldset").classList.toggle("hidden", ka);
+  form.allowConcurrentRuns.disabled = ka;
+  if (ka) form.allowConcurrentRuns.checked = false;
+  $("#recoveryWindowBox").classList.toggle("hidden", !(form.resumeInterrupted.checked || form.runMissed.checked));
+}
+["keepAlive", "resumeInterrupted", "runMissed"].forEach(n => form[n].addEventListener("change", updateRecoveryFields));
+
 function openForm(app) {
   editingId = app?.id ?? null;
   form.reset();
@@ -233,6 +260,11 @@ function openForm(app) {
   form.timeoutMinutes.value = a.timeoutMinutes ?? 0;
   form.enabled.checked = a.enabled !== false;
   form.allowConcurrentRuns.checked = !!a.allowConcurrentRuns;
+  form.keepAlive.checked = !!a.keepAlive;
+  form.keepAliveDelaySeconds.value = a.keepAliveDelaySeconds ?? 10;
+  form.resumeInterrupted.checked = !!a.resumeInterrupted;
+  form.runMissed.checked = !!a.runMissed;
+  form.recoveryWindowHours.value = a.recoveryWindowHours ?? 6;
   form.env.value = Object.entries(a.environmentVariables ?? {}).map(([k, v]) => `${k}=${v}`).join("\n");
 
   const s = a.schedule;
@@ -245,6 +277,7 @@ function openForm(app) {
   form.querySelectorAll("input[name=wd]").forEach(c => c.checked = (s?.daysOfWeek ?? []).includes(c.value));
 
   updateScheduleFields();
+  updateRecoveryFields();
   $("#dlgApp").showModal();
 }
 
@@ -263,10 +296,15 @@ form.addEventListener("submit", async (e) => {
     arguments: form.arguments.value,
     workingDirectory: form.workingDirectory.value.trim() || null,
     enabled: form.enabled.checked,
-    allowConcurrentRuns: form.allowConcurrentRuns.checked,
+    allowConcurrentRuns: form.keepAlive.checked ? false : form.allowConcurrentRuns.checked,
+    keepAlive: form.keepAlive.checked,
+    keepAliveDelaySeconds: parseInt(form.keepAliveDelaySeconds.value || "10", 10),
+    resumeInterrupted: form.resumeInterrupted.checked,
+    runMissed: form.runMissed.checked,
+    recoveryWindowHours: parseInt(form.recoveryWindowHours.value || "6", 10),
     timeoutMinutes: parseInt(form.timeoutMinutes.value || "0", 10),
     environmentVariables: env,
-    schedule: readSchedule()
+    schedule: form.keepAlive.checked ? null : readSchedule()
   };
   try {
     if (editingId) await api(`/api/apps/${encodeURIComponent(editingId)}`, { method: "PUT", body: JSON.stringify(body) });
@@ -293,7 +331,7 @@ async function openHistory(appId, name) {
       <tr>
         <td>${fmtFull(r.startedAt)}</td>
         ${appId ? "" : `<td>${esc(r.appName)}</td>`}
-        <td>${r.trigger === "Manual" ? "Elle" : "Zamanlama"}</td>
+        <td>${TRIGGER_TR[r.trigger] ?? r.trigger}</td>
         <td>${esc(r.startedBy ?? "–")}${r.stoppedBy ? `<br><small>Durduran: ${esc(r.stoppedBy)}</small>` : ""}</td>
         <td><span class="badge b-${r.status}">${STATUS_TR[r.status] ?? r.status}</span>${r.error ? `<br><small>${esc(r.error)}</small>` : ""}</td>
         <td>${duration(r.startedAt, r.endedAt)}</td>
