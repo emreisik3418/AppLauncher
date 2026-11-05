@@ -32,11 +32,17 @@ builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
-// Windows Authentication (Enabled değişikliği için servisi yeniden başlatmak gerekir;
-// izinli sicil listesi ise anında uygulanır)
+// Giriş (login sayfası + Windows/AD doğrulama). Enabled değişikliği için servisi yeniden başlatmak gerekir;
+// izinli sicil listesi ise anında uygulanır.
 var authEnabled = builder.Configuration.GetValue("Launcher:Auth:Enabled", true);
-if (authEnabled) builder.Services.AddLauncherWindowsAuth();
+if (authEnabled)
+{
+    var launcherOptions = builder.Configuration.GetSection("Launcher").Get<LauncherOptions>() ?? new LauncherOptions();
+    var dataDir = launcherOptions.ResolveDataDirectory(builder.Environment.ContentRootPath);
+    builder.Services.AddLauncherAuth(builder.Configuration, dataDir);
+}
 
+builder.Services.AddSingleton<LoginThrottle>();
 builder.Services.AddSingleton<AppStore>();
 builder.Services.AddSingleton<RunHistory>();
 builder.Services.AddSingleton<ProcessRunner>();
@@ -47,6 +53,8 @@ var app = builder.Build();
 // Servisleri başlangıçta oluştur (config dosyası yoksa örnek oluşturulsun, hatalar erken görünsün)
 app.Services.GetRequiredService<AppStore>();
 app.Services.GetRequiredService<RunHistory>();
+
+app.UseLauncherCsrfGuard();
 
 if (authEnabled)
 {
@@ -61,6 +69,7 @@ else
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.MapLauncherAuth(authEnabled);
 app.MapLauncherApi(authEnabled);
 
 app.Run();

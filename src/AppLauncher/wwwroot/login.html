@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Giriş · App Launcher</title>
+  <style>
+    :root {
+      --bg: #eef1f5; --card: #ffffff; --text: #18202e; --muted: #667085; --line: #d9dee7;
+      --primary: #1f4fd1; --primary-hover: #1a43b3; --primary-ink: #fff;
+      --side: #0f1b33; --side-2: #16264a; --side-text: #e6ebf5; --side-muted: #9aa8c4;
+      --err-bg: #fdecec; --err: #b42318; --info-bg: #eaf1ff; --info: #1f4fd1; --warn: #b54708;
+      --focus: 0 0 0 3px rgba(31, 79, 209, .25);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117; --card: #161b24; --text: #e6e9ef; --muted: #8b94a7; --line: #2a3140;
+        --primary: #4d7cff; --primary-hover: #6a91ff;
+        --err-bg: rgba(240, 68, 56, .12); --err: #ff8a80; --info-bg: rgba(77, 124, 255, .12); --info: #8fb0ff; --warn: #fdb022;
+        --focus: 0 0 0 3px rgba(77, 124, 255, .35);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+
+    .layout { min-height: 100%; display: grid; grid-template-columns: minmax(360px, 44%) 1fr; }
+
+    /* Sol bilgi paneli */
+    .side {
+      position: relative; overflow: hidden; color: var(--side-text);
+      background: linear-gradient(160deg, var(--side) 0%, var(--side-2) 100%);
+      padding: 48px 56px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .side::before {
+      content: ""; position: absolute; inset: 0; opacity: .07; pointer-events: none;
+      background-image: linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    .side > * { position: relative; }
+    .mark { display: flex; align-items: center; gap: 12px; font-weight: 600; letter-spacing: .2px; }
+    .mark .logo { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18); }
+    .side h1 { font-size: 32px; line-height: 1.2; margin: 0 0 14px; font-weight: 600; letter-spacing: -.3px; }
+    .side p.lead { color: var(--side-muted); margin: 0 0 32px; max-width: 420px; }
+    .features { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; }
+    .features li { display: flex; gap: 12px; align-items: flex-start; color: var(--side-text); }
+    .features svg { flex: none; margin-top: 2px; opacity: .9; }
+    .features small { display: block; color: var(--side-muted); }
+    .side footer { color: var(--side-muted); font-size: 13px; }
+
+    /* Sağ form alanı */
+    .main { display: grid; place-items: center; padding: 40px 24px; }
+    .card { width: 100%; max-width: 400px; }
+    .card h2 { margin: 0 0 6px; font-size: 24px; font-weight: 600; letter-spacing: -.2px; }
+    .card .sub { margin: 0 0 28px; color: var(--muted); }
+
+    .alert { display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; margin-bottom: 20px; font-size: 14px; }
+    .alert svg { flex: none; margin-top: 2px; }
+    .alert.err { background: var(--err-bg); color: var(--err); }
+    .alert.info { background: var(--info-bg); color: var(--info); }
+    .alert code { font-family: Consolas, monospace; font-weight: 600; }
+
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .field { margin-bottom: 18px; }
+    .input { position: relative; }
+    .input svg.lead { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+    input[type=text], input[type=password] {
+      width: 100%; height: 44px; padding: 0 44px 0 40px; border: 1px solid var(--line); border-radius: 10px;
+      background: var(--card); color: var(--text); font: inherit; transition: border-color .15s, box-shadow .15s;
+    }
+    input:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus); }
+    .toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--muted); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: grid; place-items: center; }
+    .toggle:hover { color: var(--text); }
+    .toggle:focus-visible { outline: none; box-shadow: var(--focus); }
+    .hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+    .caps { font-size: 12.5px; color: var(--warn); margin-top: 6px; }
+
+    .btn { width: 100%; height: 44px; border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 10px; transition: background .15s, border-color .15s; }
+    .btn:focus-visible { outline: none; box-shadow: var(--focus); }
+    .btn.primary { background: var(--primary); color: var(--primary-ink); border: 1px solid var(--primary); }
+    .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .btn.secondary { background: var(--card); color: var(--text); border: 1px solid var(--line); }
+    .btn.secondary:hover { border-color: var(--primary); }
+    .btn[disabled] { opacity: .7; cursor: progress; }
+    .spinner { width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; margin: 22px 0; }
+    .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+    .legal { margin-top: 32px; font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: flex-start; }
+    .legal svg { flex: none; margin-top: 1px; }
+    .hidden { display: none !important; }
+
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .side { padding: 24px 16px; }
+      .side .hero, .side footer { display: none; }
+      .main { padding: 32px 16px; align-items: start; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side">
+    <div class="mark">
+      <span class="logo" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.8v10.4c0 .6.7 1 1.2.6l8-5.2a.8.8 0 0 0 0-1.3l-8-5.2C4.7 1.8 4 2.2 4 2.8z"/></svg>
+      </span>
+      App Launcher
+    </div>
+
+    <div class="hero">
+      <h1>Uygulama yönetimi<br>ve zamanlama</h1>
+      <p class="lead">Kurumsal uygulamalarınızı tek bir yerden izleyin, çalıştırın ve zamanlayın.</p>
+      <ul class="features">
+        <li>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <span>Esnek zamanlama<small>Günlük, haftalık, ayın belirli günü veya son perşembesi</small></span>
+        </li>
+        <li>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          <span>Canlı log ve geçmiş<small>Her çalıştırmanın çıktısı, süresi ve sonucu</small></span>
+        </li>
+        <li>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          <span>Kurumsal kimlik doğrulama<small>Windows / Active Directory hesabıyla, yetkili sicillere özel</small></span>
+        </li>
+      </ul>
+    </div>
+
+    <footer id="machine">&nbsp;</footer>
+  </aside>
+
+  <main class="main">
+    <div class="card">
+      <h2>Oturum açın</h2>
+      <p class="sub" id="sub">Kurumsal hesabınızla devam edin.</p>
+
+      <div id="alert" class="alert hidden" role="alert"></div>
+
+      <form id="form" class="hidden" novalidate autocomplete="on">
+        <div class="field">
+          <label for="username">Sicil</label>
+          <div class="input">
+            <svg class="lead" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+            <input id="username" name="username" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="ör. A12345" required>
+          </div>
+          <div class="hint" id="domainHint"></div>
+        </div>
+
+        <div class="field">
+          <label for="password">Şifre</label>
+          <div class="input">
+            <svg class="lead" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Windows şifreniz" required>
+            <button type="button" class="toggle" id="togglePw" aria-label="Şifreyi göster">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <div class="caps hidden" id="caps">Caps Lock açık</div>
+        </div>
+
+        <button type="submit" class="btn primary" id="submit">Giriş yap</button>
+      </form>
+
+      <div class="divider hidden" id="divider">veya</div>
+
+      <button type="button" class="btn secondary hidden" id="winBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+        Windows oturumumla giriş yap
+      </button>
+
+      <div class="legal">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <span>Bu sistem yalnızca yetkili kullanıcılar içindir. Tüm giriş denemeleri kayıt altına alınır.</span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+"use strict";
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const returnUrl = params.get("ReturnUrl") || params.get("returnUrl") || "/";
+  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  const ICON_ERR = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>';
+  const ICON_INFO = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>';
+
+  function showAlert(kind, html) {
+    const a = $("alert");
+    a.className = "alert " + kind;
+    a.innerHTML = (kind === "err" ? ICON_ERR : ICON_INFO) + "<div>" + html + "</div>";
+  }
+  function hideAlert() { $("alert").className = "alert hidden"; }
+
+  // Sayfa adresinden gelen mesajlar
+  const error = params.get("error");
+  if (error === "forbidden") {
+    const u = params.get("user");
+    showAlert("err", (u ? `<code>${esc(u)}</code> kullanıcısının` : "Bu kullanıcının") +
+      " uygulamaya erişim yetkisi yok. Yetki için sistem yöneticinize başvurun.");
+  } else if (error === "windows") {
+    showAlert("err", "Windows oturumu ile giriş yapılamadı. Sicil ve şifrenizle giriş yapabilirsiniz.");
+  } else if (params.has("loggedOut")) {
+    showAlert("info", "Oturumunuz kapatıldı.");
+  } else if (params.has("ReturnUrl") && returnUrl !== "/") {
+    showAlert("info", "Devam etmek için oturum açın.");
+  }
+  if (error || params.has("loggedOut")) history.replaceState(null, "", location.pathname + (returnUrl !== "/" ? "?ReturnUrl=" + encodeURIComponent(returnUrl) : ""));
+
+  fetch("/api/auth/info", { cache: "no-store" })
+    .then(r => r.json())
+    .then(info => {
+      if (!info.authEnabled) { location.replace("/"); return; }
+      if (info.user) { location.replace(returnUrl); return; }
+
+      $("machine").textContent = info.machine ? `Sunucu: ${info.machine}` : "";
+      $("domainHint").textContent = info.domain ? `Domain: ${info.domain}` : "Yerel Windows hesabı";
+
+      if (info.passwordLogin) $("form").classList.remove("hidden");
+      if (info.windowsLogin) $("winBtn").classList.remove("hidden");
+      if (info.passwordLogin && info.windowsLogin) $("divider").classList.remove("hidden");
+      if (!info.passwordLogin && info.windowsLogin) $("sub").textContent = "Windows hesabınızla devam edin.";
+      if (info.passwordLogin) $("username").focus();
+    })
+    .catch(() => showAlert("err", "Sunucuya ulaşılamıyor. Lütfen daha sonra tekrar deneyin."));
+
+  // Şifre göster / gizle
+  $("togglePw").addEventListener("click", () => {
+    const p = $("password");
+    const show = p.type === "password";
+    p.type = show ? "text" : "password";
+    $("togglePw").setAttribute("aria-label", show ? "Şifreyi gizle" : "Şifreyi göster");
+    p.focus();
+  });
+
+  // Caps Lock uyarısı
+  const caps = (e) => { if (e.getModifierState) $("caps").classList.toggle("hidden", !e.getModifierState("CapsLock")); };
+  $("password").addEventListener("keyup", caps);
+  $("password").addEventListener("keydown", caps);
+
+  // Sicil + şifre
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = $("username").value.trim();
+    const password = $("password").value;
+    if (!username) { showAlert("err", "Sicil girin."); $("username").focus(); return; }
+    if (!password) { showAlert("err", "Şifre girin."); $("password").focus(); return; }
+
+    const btn = $("submit");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Doğrulanıyor…';
+    hideAlert();
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Launcher": "1" },
+        body: JSON.stringify({ username, password, returnUrl })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) { location.replace(data.redirect || "/"); return; }
+      showAlert("err", esc(data.error || "Giriş yapılamadı."));
+      $("password").value = "";
+      $("password").focus();
+    } catch {
+      showAlert("err", "Sunucuya ulaşılamıyor.");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Giriş yap";
+    }
+  });
+
+  // Windows oturumu (Kerberos/NTLM)
+  $("winBtn").addEventListener("click", () => {
+    const b = $("winBtn");
+    b.disabled = true;
+    b.innerHTML = '<span class="spinner"></span> Windows ile doğrulanıyor…';
+    location.href = "/auth/windows?returnUrl=" + encodeURIComponent(returnUrl);
+  });
+  // Geri tuşuyla önbellekten dönüldüğünde düğme kilitli kalmasın
+  window.addEventListener("pageshow", (e) => { if (e.persisted) location.reload(); });
+})();
+</script>
+</body>
+</html>

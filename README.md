@@ -11,7 +11,8 @@ Kendi yazdığınız uygulamaları (exe, bat, cmd, ps1, dll, py) bir web arayüz
 - Zamanlama tipleri: her gün, haftalık, ayın N. günü, ayın son günü, ayın 1./2./3./4./**son** X günü, serbest cron
 - Zaman aşımı, eşzamanlı çalışmayı engelleme, ortam değişkenleri
 - Windows Service olarak kurulum, hata halinde otomatik yeniden başlatma
-- **Windows Authentication**: yalnızca config'te listelenen siciller (veya AD grupları) girebilir; kim neyi başlattı/durdurdu kaydedilir
+- **Kurumsal login sayfası**: sicil + domain şifresi veya tek tıkla Windows oturumu ile giriş, çıkış yap
+- Yalnızca config'te listelenen siciller (veya AD grupları) girebilir; kim neyi başlattı/durdurdu kaydedilir
 
 ## Gereksinimler
 
@@ -148,10 +149,29 @@ Sunucuya özel ayarlar kurulum klasöründeki **`appsettings.Local.json`** dosya
 - **AllowedUsers**: Girebilecek Windows kullanıcı adları (siciller). `A12345` yazarsanız domain fark etmeksizin eşleşir. `SIRKET\\A12345` yazarsanız yalnızca o domain eşleşir. JSON içinde `\` iki kez yazılır. Büyük/küçük harf fark etmez.
 - **AllowedGroups** (isteğe bağlı): Bu AD gruplarının üyeleri de girebilir.
 - Listeye ekleme/çıkarma **servisi yeniden başlatmadan** hemen geçerli olur. `Enabled` değiştirilirse servisi yeniden başlatın.
-- Yetkisi olmayan kullanıcı, kendi Windows kullanıcı adını gösteren bir "Erişim yetkiniz yok" sayfası görür. Bu adı listeye eklemeniz yeterli.
+- Yetkisi olmayan kullanıcı, login sayfasında kendi Windows kullanıcı adını gösteren bir "erişim yetkisi yok" mesajı görür. Bu adı listeye eklemeniz yeterli. Listeden çıkarılan kullanıcının açık oturumu bir sonraki işleminde kapanır.
+
+### Login sayfası
+
+`http://MAKINEADI:5080` açıldığında oturum yoksa `/login` sayfası gelir. İki giriş yolu vardır:
+
+1. **Sicil + şifre**: Kullanıcı domain sicilini ve Windows şifresini yazar. Şifre sunucuda Windows/AD'ye (LogonUser) karşı doğrulanır, uygulama şifreyi saklamaz. Sicil `A12345`, `SIRKET\A12345` veya `a12345@sirket.local` biçiminde yazılabilir.
+2. **Windows oturumumla giriş yap**: Bilgisayardaki oturum ile şifre sorulmadan girer (Kerberos/NTLM).
+
+Giriş sonrası oturum cookie ile tutulur. Sağ üstteki kullanıcı menüsünden **Çıkış yap** seçilebilir.
+
+| Ayar (`Launcher:Auth`) | Varsayılan | Açıklama |
+|---|---|---|
+| `Domain` | boş | Sicil + şifre girişinde kullanılacak domain. Boşsa sunucunun domain'i otomatik bulunur. Login sayfasında "Domain: …" olarak görünür |
+| `AllowPasswordLogin` | `true` | Sicil + şifre formunu göster |
+| `AllowWindowsLogin` | `true` | "Windows oturumumla giriş yap" düğmesini göster |
+| `SessionMinutes` | `480` | Bu süre boyunca işlem yapılmazsa oturum düşer |
+| `MaxFailedAttempts` / `LockoutMinutes` | `5` / `10` | Bir sicil 10 dakika içinde 5 kez hatalı şifre girerse giriş 10 dakika engellenir. Bu, AD hesabının kilitlenmesini önlemeye yardımcı olur |
+
+Oturum anahtarları `data\keys` klasöründe (DPAPI ile şifreli) tutulur. Bu sayede servis yeniden başlasa da kullanıcıların oturumu düşmez.
 - Giriş, ekleme/silme, çalıştırma/durdurma ve yetkisiz erişim denemeleri Olay Görüntüleyicisi'ne (Application → AppLauncher) yazılır. Geçmiş ekranında da "Kullanıcı" sütununda görünür.
 
-**Tarayıcı:** Edge/Chrome, domain'deki makinelerde Windows oturumuyla otomatik giriş yapar. Kullanıcı adı/şifre penceresi çıkarsa adresi Internet Seçenekleri → Güvenlik → **Yerel intranet** → Siteler → Gelişmiş bölümüne `http://MAKINEADI` olarak ekleyin (GPO ile de dağıtılabilir). Firefox için `about:config` → `network.negotiate-auth.trusted-uris` ayarına makine adını ekleyin.
+**Tarayıcı:** "Windows oturumumla giriş yap" düğmesine basıldığında Edge/Chrome, domain'deki makinelerde şifre sormadan girer. Tarayıcı kendi kullanıcı adı/şifre penceresini açarsa adresi Internet Seçenekleri → Güvenlik → **Yerel intranet** → Siteler → Gelişmiş bölümüne `http://MAKINEADI` olarak ekleyin (GPO ile de dağıtılabilir). Firefox için `about:config` → `network.negotiate-auth.trusted-uris` ayarına makine adını ekleyin.
 
 **Geliştirme (F5):** Proje klasörüne kendi `appsettings.Local.json` dosyanızı koyun ve sicilinizi yazın. Bu dosya git'e ve publish'e dahil edilmez.
 
@@ -196,6 +216,8 @@ src/AppLauncher/
   Services/SchedulerService.cs  Arka planda zamanı gelenleri başlatır
   Services/ProcessRunner.cs  Süreç başlatma/durdurma, loglama, zaman aşımı
   Services/RunHistory.cs     Çalıştırma geçmişi (data/history.json)
-  Security/WindowsAuth.cs    Windows Authentication + izinli sicil kontrolü
+  Security/WindowsAuth.cs    Cookie + Windows kimlik doğrulama, izinli sicil kontrolü
+  Security/AuthEndpoints.cs  Login/logout uçları, AD şifre doğrulama, hatalı deneme sınırı
+  wwwroot/login.html         Login sayfası
   wwwroot/                   Arayüz (HTML/CSS/JS, derleme gerektirmez)
 ```

@@ -18,7 +18,9 @@ public static class Endpoints
         api.MapGet("/me", (ClaimsPrincipal user) => new
         {
             authEnabled,
-            name = UserName(user)
+            name = UserName(user),
+            method = user.FindFirst(AppLauncher.Security.AuthEndpoints.MethodClaim)?.Value,
+            loginAt = user.FindFirst(AppLauncher.Security.AuthEndpoints.LoginAtClaim)?.Value
         });
 
         api.MapGet("/status", (AppStore store, IOptions<LauncherOptions> opt) => new

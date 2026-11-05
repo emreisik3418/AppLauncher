@@ -21,6 +21,17 @@ body { margin: 0; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; background:
 .brand h1 { margin: 0; font-size: 18px; }
 .brand small { color: var(--muted); }
 .brand small.user { display: block; }
+.actions { align-items: center; }
+.user-box { position: relative; }
+.user-btn { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 4px 10px 4px 4px; border-radius: 999px; cursor: pointer; font: inherit; }
+.user-btn:hover { border-color: var(--primary); }
+.avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: var(--primary-ink); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.user-menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 230px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 6px; z-index: 20; }
+.um-head { padding: 8px 10px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.um-head strong { display: block; font-size: 13px; word-break: break-all; }
+.um-head small { color: var(--muted); font-size: 12px; }
+.um-item { width: 100%; display: flex; align-items: center; gap: 8px; border: 0; background: none; color: var(--err); padding: 8px 10px; border-radius: 6px; cursor: pointer; font: inherit; text-align: left; }
+.um-item:hover { background: var(--bg); }
 .logo { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--primary); color: var(--primary-ink); font-size: 14px; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .actions input { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }

@@ -19,8 +19,13 @@ const duration = (a, b) => {
   return (h ? h + "s " : "") + (h || m ? m + "dk " : "") + sec + "sn";
 };
 
+function goLogin() {
+  location.href = "/login?ReturnUrl=" + encodeURIComponent(location.pathname + location.search);
+}
+
 async function api(url, opt = {}) {
-  const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...opt });
+  const res = await fetch(url, { ...opt, headers: { "Content-Type": "application/json", "X-Launcher": "1", ...(opt.headers || {}) } });
+  if (res.status === 401) { goLogin(); throw new Error("Oturum süresi doldu."); }
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
@@ -45,7 +50,7 @@ let appsCache = [];
 async function refresh() {
   try {
     const [status, apps, me] = await Promise.all([api("/api/status"), api("/api/apps"), api("/api/me")]);
-    $("#userInfo").textContent = me.authEnabled ? `Kullanıcı: ${me.name}` : "Giriş kontrolü kapalı";
+    renderUser(me);
     $("#serverInfo").textContent = `Sunucu saati: ${fmtFull(status.serverTime)} · ${status.timeZone}`;
     const ce = $("#configError");
     if (status.configError) {
@@ -58,6 +63,18 @@ async function refresh() {
   } catch (e) {
     $("#serverInfo").textContent = "Sunucuya ulaşılamıyor: " + e.message;
   }
+}
+
+function renderUser(me) {
+  const box = $("#userBox");
+  if (!me.authEnabled) { box.classList.add("hidden"); $("#userInfo").textContent = "Giriş kontrolü kapalı"; return; }
+  box.classList.remove("hidden");
+  const name = me.name || "";
+  const short = name.includes("\\") ? name.split("\\").pop() : name;
+  $("#userName").textContent = short;
+  $("#userAvatar").textContent = short.slice(0, 2).toUpperCase();
+  $("#userMenuName").textContent = name;
+  $("#userMenuMeta").textContent = (me.method ? me.method + " ile giriş" : "") + (me.loginAt ? " · " + fmt(me.loginAt) : "");
 }
 
 function render() {
@@ -325,7 +342,7 @@ $("#btnConfig").addEventListener("click", async () => {
 
 $("#btnConfigSave").addEventListener("click", async () => {
   try {
-    await fetch("/api/config", { method: "PUT", body: $("#configText").value, headers: { "Content-Type": "application/json" } })
+    await fetch("/api/config", { method: "PUT", body: $("#configText").value, headers: { "Content-Type": "application/json", "X-Launcher": "1" } })
       .then(async r => { if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.errors?.join("\n") || r.statusText); } });
     $("#dlgConfig").close();
     toast("apps.json kaydedildi");
@@ -335,6 +352,19 @@ $("#btnConfigSave").addEventListener("click", async () => {
     box.textContent = e.message;
     box.classList.remove("hidden");
   }
+});
+
+// ------------------------------------------------------------------ kullanıcı menüsü
+$("#userBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  $("#userMenu").classList.toggle("hidden");
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#userBox")) $("#userMenu").classList.add("hidden");
+});
+$("#btnLogout").addEventListener("click", async () => {
+  try { await api("/api/auth/logout", { method: "POST" }); } catch { /* yoksay */ }
+  location.href = "/login?loggedOut=1";
 });
 
 // ------------------------------------------------------------------ genel

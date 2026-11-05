@@ -77,6 +77,7 @@ Her dosya için ilgili klasöre sağ tık → **Add → New Item**. C# dosyalar�
 | `Properties/launchSettings.json` (değiştirin) | `src/AppLauncher/Properties/launchSettings.json` |
 | `Models/Models.cs` | `src/AppLauncher/Models/Models.cs` |
 | `Security/WindowsAuth.cs` | `src/AppLauncher/Security/WindowsAuth.cs` |
+| `Security/AuthEndpoints.cs` | `src/AppLauncher/Security/AuthEndpoints.cs` |
 | `Services/AppStore.cs` | `src/AppLauncher/Services/AppStore.cs` |
 | `Services/RunHistory.cs` | `src/AppLauncher/Services/RunHistory.cs` |
 | `Services/ProcessRunner.cs` | `src/AppLauncher/Services/ProcessRunner.cs` |
@@ -85,6 +86,7 @@ Her dosya için ilgili klasöre sağ tık → **Add → New Item**. C# dosyalar�
 | `wwwroot/index.html` | `src/AppLauncher/wwwroot/index.html` |
 | `wwwroot/style.css` | `src/AppLauncher/wwwroot/style.css` |
 | `wwwroot/app.js` | `src/AppLauncher/wwwroot/app.js` |
+| `wwwroot/login.html` | `src/AppLauncher/wwwroot/login.html` |
 
 > İpucu: GitHub'da dosyayı açınca sağ üstteki **Copy raw file** düğmesi içeriğin tamamını kopyalar.
 
@@ -124,7 +126,7 @@ Projeye çift tıklayın (veya sağ tık → **Edit Project File**). İçerik ş
 ### 6. Derleyin ve çalıştırın
 
 1. **Build → Build Solution** (Ctrl+Shift+B). Hata listesi boş olmalı.
-1. Proje klasörüne (`Program.cs` ile aynı yere) `appsettings.Local.json` dosyası ekleyip kendi sicilinizi yazın. Eklemezseniz "Erişim yetkiniz yok" sayfası çıkar ve o sayfada eklemeniz gereken kullanıcı adı yazar:
+1. Proje klasörüne (`Program.cs` ile aynı yere) `appsettings.Local.json` dosyası ekleyip kendi sicilinizi yazın. Eklemezseniz giriş yaptığınızda login sayfasında "erişim yetkisi yok" mesajı ve eklemeniz gereken kullanıcı adı görünür:
    ```json
    { "Launcher": { "Auth": { "AllowedUsers": [ "A12345" ] } } }
    ```
