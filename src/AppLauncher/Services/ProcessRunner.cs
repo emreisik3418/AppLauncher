@@ -38,7 +38,7 @@ public sealed class ProcessRunner
         _active.Values.Where(a => a.Record.AppId.Equals(appId, StringComparison.OrdinalIgnoreCase))
                       .Select(a => a.Record).ToList();
 
-    public RunRecord Start(AppDefinition app, RunTrigger trigger)
+    public RunRecord Start(AppDefinition app, RunTrigger trigger, string? startedBy = null)
     {
         lock (_startLock)
         {
@@ -51,6 +51,7 @@ public sealed class ProcessRunner
                 AppId = app.Id,
                 AppName = app.Name,
                 Trigger = trigger,
+                StartedBy = startedBy,
                 StartedAt = now,
                 Status = RunStatus.Running
             };
@@ -73,7 +74,7 @@ public sealed class ProcessRunner
                 return FailImmediately(record, writer, ex);
             }
 
-            WriteLine(writer, $"=== {app.Name} | {(trigger == RunTrigger.Manual ? "Elle" : "Zamanlanmış")} | {now:yyyy-MM-dd HH:mm:ss}");
+            WriteLine(writer, $"=== {app.Name} | {(trigger == RunTrigger.Manual ? "Elle" : "Zamanlanmış")}{(startedBy is null ? "" : " (" + startedBy + ")")} | {now:yyyy-MM-dd HH:mm:ss}");
             WriteLine(writer, $"=== Komut: {psi.FileName} {psi.Arguments}");
             WriteLine(writer, $"=== Çalışma klasörü: {psi.WorkingDirectory}");
 
@@ -105,11 +106,12 @@ public sealed class ProcessRunner
         }
     }
 
-    public bool Stop(string runId)
+    public bool Stop(string runId, string? stoppedBy = null)
     {
         if (!_active.TryGetValue(runId, out var active)) return false;
         active.StopRequested = true;
-        WriteLine(active.Writer, "=== Kullanıcı tarafından durduruluyor...");
+        active.Record.StoppedBy = stoppedBy;
+        WriteLine(active.Writer, $"=== Kullanıcı tarafından durduruluyor{(stoppedBy is null ? "" : " (" + stoppedBy + ")")}...");
         Kill(active.Process);
         return true;
     }

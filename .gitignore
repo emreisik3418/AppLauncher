@@ -3,3 +3,4 @@ obj/
 .vs/
 *.user
 src/AppLauncher/data/
+appsettings.Local.json

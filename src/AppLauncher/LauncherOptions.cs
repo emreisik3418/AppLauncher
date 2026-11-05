@@ -21,6 +21,9 @@ public sealed class LauncherOptions
     /// <summary>Zamanlayıcının kontrol aralığı (saniye).</summary>
     public int CheckIntervalSeconds { get; set; } = 15;
 
+    /// <summary>Windows Authentication ve izinli siciller.</summary>
+    public Security.AuthOptions Auth { get; set; } = new();
+
     public string ResolveDataDirectory(string contentRoot) =>
         Path.IsPathRooted(DataDirectory) ? DataDirectory : Path.Combine(contentRoot, DataDirectory);
 

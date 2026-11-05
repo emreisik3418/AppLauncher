@@ -11,6 +11,7 @@ Kendi yazdığınız uygulamaları (exe, bat, cmd, ps1, dll, py) bir web arayüz
 - Zamanlama tipleri: her gün, haftalık, ayın N. günü, ayın son günü, ayın 1./2./3./4./**son** X günü, serbest cron
 - Zaman aşımı, eşzamanlı çalışmayı engelleme, ortam değişkenleri
 - Windows Service olarak kurulum, hata halinde otomatik yeniden başlatma
+- **Windows Authentication**: yalnızca config'te listelenen siciller (veya AD grupları) girebilir; kim neyi başlattı/durdurdu kaydedilir
 
 ## Gereksinimler
 
@@ -52,7 +53,7 @@ Komutları elle çalıştırmak isterseniz, **yönetici** komut isteminde (cmd):
 dotnet publish src\AppLauncher\AppLauncher.csproj -c Release -r win-x64 --self-contained false -o C:\Services\AppLauncher
 
 :: 2) Servisi oluştur  (binPath= / start= sonrasındaki BOŞLUK zorunlu)
-sc.exe create AppLauncher binPath= "\"C:\Services\AppLauncher\AppLauncher.exe\" --urls http://localhost:5080" start= auto DisplayName= "App Launcher"
+sc.exe create AppLauncher binPath= "\"C:\Services\AppLauncher\AppLauncher.exe\"" start= auto DisplayName= "App Launcher"
 sc.exe description AppLauncher "Uygulamalari web arayuzunden yonetir ve zamanlanmis calistirir."
 
 :: 3) Hata alırsa 1 dk sonra yeniden başlat
@@ -126,6 +127,34 @@ Konum: uygulama klasöründeki `data\apps.json` (servis kurulumunda `C:\Services
 Gün adları İngilizce yazılır: `Monday` … `Sunday`. Zamanlama olmaması için `"schedule": null` kullanın.
 `dayOfMonth: 31` seçilirse 31 çekmeyen aylarda çalışmaz; ay sonu için `MonthlyLastDay` kullanın.
 
+## Giriş yetkisi ve ağ erişimi (appsettings.Local.json)
+
+Sunucuya özel ayarlar kurulum klasöründeki **`appsettings.Local.json`** dosyasında tutulur (örn. `C:\Services\AppLauncher\appsettings.Local.json`). Kurulum betiği bu dosyayı ilk kurulumda, kurulumu yapan kullanıcının sicili ile oluşturur. Güncelleme (yeniden publish) sırasında **ezilmez**.
+
+```json
+{
+  "Urls": "http://0.0.0.0:5080",
+  "Launcher": {
+    "Auth": {
+      "Enabled": true,
+      "AllowedUsers": [ "A12345", "B67890", "SIRKET\\C11111" ],
+      "AllowedGroups": [ "SIRKET\\AppLauncher-Yoneticiler" ]
+    }
+  }
+}
+```
+
+- **Urls**: `0.0.0.0` makinenin tüm ağ adreslerini dinler. Diğer makinelerden `http://MAKINEADI:5080` ile erişilir.
+- **AllowedUsers**: Girebilecek Windows kullanıcı adları (siciller). `A12345` yazarsanız domain fark etmeksizin eşleşir. `SIRKET\\A12345` yazarsanız yalnızca o domain eşleşir. JSON içinde `\` iki kez yazılır. Büyük/küçük harf fark etmez.
+- **AllowedGroups** (isteğe bağlı): Bu AD gruplarının üyeleri de girebilir.
+- Listeye ekleme/çıkarma **servisi yeniden başlatmadan** hemen geçerli olur. `Enabled` değiştirilirse servisi yeniden başlatın.
+- Yetkisi olmayan kullanıcı, kendi Windows kullanıcı adını gösteren bir "Erişim yetkiniz yok" sayfası görür. Bu adı listeye eklemeniz yeterli.
+- Giriş, ekleme/silme, çalıştırma/durdurma ve yetkisiz erişim denemeleri Olay Görüntüleyicisi'ne (Application → AppLauncher) yazılır. Geçmiş ekranında da "Kullanıcı" sütununda görünür.
+
+**Tarayıcı:** Edge/Chrome, domain'deki makinelerde Windows oturumuyla otomatik giriş yapar. Kullanıcı adı/şifre penceresi çıkarsa adresi Internet Seçenekleri → Güvenlik → **Yerel intranet** → Siteler → Gelişmiş bölümüne `http://MAKINEADI` olarak ekleyin (GPO ile de dağıtılabilir). Firefox için `about:config` → `network.negotiate-auth.trusted-uris` ayarına makine adını ekleyin.
+
+**Geliştirme (F5):** Proje klasörüne kendi `appsettings.Local.json` dosyanızı koyun ve sicilinizi yazın. Bu dosya git'e ve publish'e dahil edilmez.
+
 ## appsettings.json
 
 ```json
@@ -139,7 +168,9 @@ Gün adları İngilizce yazılır: `Monday` … `Sunday`. Zamanlama olmaması i�
 }
 ```
 
-- **Urls**: Varsayılan olarak yalnızca bu makineden erişilebilir. Ağdan erişim için `http://0.0.0.0:5080` yapın. Arayüzde kimlik doğrulama **yoktur**, bu yüzden ağa açacaksanız güvenlik duvarı ile kısıtlayın veya Windows Authentication ekleyin.
+Bu dosyadaki değerler varsayılanlardır. Sunucuya özel değerleri (Urls, Auth) `appsettings.Local.json` dosyasına yazın, çünkü `appsettings.json` her publish'te üzerine yazılır.
+
+- **Urls**: Varsayılan `localhost`. Ağ erişimi için yukarıdaki bölüme bakın.
 - **TimeZone**: Boşsa sunucunun saat dilimi. Örnek: `Turkey Standard Time`.
 - **OutputEncoding**: Log'larda Türkçe karakterler bozuk görünürse `ibm857` veya `windows-1254` deneyin.
 - **HistoryLimit**: Tutulacak kayıt sayısı. Eski kayıtların log dosyaları da silinir.
@@ -165,5 +196,6 @@ src/AppLauncher/
   Services/SchedulerService.cs  Arka planda zamanı gelenleri başlatır
   Services/ProcessRunner.cs  Süreç başlatma/durdurma, loglama, zaman aşımı
   Services/RunHistory.cs     Çalıştırma geçmişi (data/history.json)
+  Security/WindowsAuth.cs    Windows Authentication + izinli sicil kontrolü
   wwwroot/                   Arayüz (HTML/CSS/JS, derleme gerektirmez)
 ```

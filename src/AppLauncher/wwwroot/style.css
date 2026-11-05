@@ -20,6 +20,7 @@ body { margin: 0; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; background:
 .brand { display: flex; gap: 12px; align-items: center; }
 .brand h1 { margin: 0; font-size: 18px; }
 .brand small { color: var(--muted); }
+.brand small.user { display: block; }
 .logo { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--primary); color: var(--primary-ink); font-size: 14px; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .actions input { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }

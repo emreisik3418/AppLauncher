@@ -41,12 +41,14 @@ Projeye sağ tık → **Manage NuGet Packages** → Browse sekmesinde şunları 
 |---|---|
 | `Cronos` | 0.8.4 |
 | `Microsoft.Extensions.Hosting.WindowsServices` | 8.0.1 |
+| `Microsoft.AspNetCore.Authentication.Negotiate` | 8.0.11 |
 
 Alternatif: **Tools → NuGet Package Manager → Package Manager Console** açıp şunları çalıştırın:
 
 ```powershell
 Install-Package Cronos -Version 0.8.4
 Install-Package Microsoft.Extensions.Hosting.WindowsServices -Version 8.0.1
+Install-Package Microsoft.AspNetCore.Authentication.Negotiate -Version 8.0.11
 ```
 
 ### 3. Klasörleri oluşturun
@@ -55,6 +57,7 @@ Projeye sağ tık → **Add → New Folder** ile şu klasörleri ekleyin:
 
 ```
 Models
+Security
 Services
 wwwroot
 ```
@@ -73,6 +76,7 @@ Her dosya için ilgili klasöre sağ tık → **Add → New Item**. C# dosyalar�
 | `appsettings.json` (değiştirin) | `src/AppLauncher/appsettings.json` |
 | `Properties/launchSettings.json` (değiştirin) | `src/AppLauncher/Properties/launchSettings.json` |
 | `Models/Models.cs` | `src/AppLauncher/Models/Models.cs` |
+| `Security/WindowsAuth.cs` | `src/AppLauncher/Security/WindowsAuth.cs` |
 | `Services/AppStore.cs` | `src/AppLauncher/Services/AppStore.cs` |
 | `Services/RunHistory.cs` | `src/AppLauncher/Services/RunHistory.cs` |
 | `Services/ProcessRunner.cs` | `src/AppLauncher/Services/ProcessRunner.cs` |
@@ -103,12 +107,15 @@ Projeye çift tıklayın (veya sağ tık → **Edit Project File**). İçerik ş
 
   <ItemGroup>
     <PackageReference Include="Cronos" Version="0.8.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="8.0.11" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Remove="data\**" />
     <None Remove="data\**" />
+    <Content Remove="appsettings.Local.json" />
+    <None Remove="appsettings.Local.json" />
   </ItemGroup>
 
 </Project>
@@ -117,6 +124,10 @@ Projeye çift tıklayın (veya sağ tık → **Edit Project File**). İçerik ş
 ### 6. Derleyin ve çalıştırın
 
 1. **Build → Build Solution** (Ctrl+Shift+B). Hata listesi boş olmalı.
+1. Proje klasörüne (`Program.cs` ile aynı yere) `appsettings.Local.json` dosyası ekleyip kendi sicilinizi yazın. Eklemezseniz "Erişim yetkiniz yok" sayfası çıkar ve o sayfada eklemeniz gereken kullanıcı adı yazar:
+   ```json
+   { "Launcher": { "Auth": { "AllowedUsers": [ "A12345" ] } } }
+   ```
 2. **F5** → tarayıcıda `http://localhost:5080` açılır.
 3. İlk çalıştırmada proje klasöründe `data\apps.json` dosyası örnek içerikle oluşur.
 4. Test için **"Deneme (ipconfig)"** kartında **▶ Çalıştır** → **Son log** ile çıktıyı görün.
@@ -149,10 +160,13 @@ Betik projeyi derleyip `C:\Services\AppLauncher` klasörüne kurar ve servisi ba
 4. Yönetici komut isteminde servisi oluşturun:
 
 ```cmd
-sc.exe create AppLauncher binPath= "\"C:\Services\AppLauncher\AppLauncher.exe\" --urls http://localhost:5080" start= auto DisplayName= "App Launcher"
+sc.exe create AppLauncher binPath= "\"C:\Services\AppLauncher\AppLauncher.exe\"" start= auto DisplayName= "App Launcher"
 sc.exe failure AppLauncher reset= 86400 actions= restart/60000/restart/60000/restart/60000
 sc.exe start AppLauncher
 ```
+
+Ardından `C:\Services\AppLauncher\appsettings.Local.json` dosyasını oluşturun (içeriği README'de var), sonra güvenlik duvarında portu açın:
+`netsh advfirewall firewall add rule name="AppLauncher 5080" dir=in action=allow protocol=TCP localport=5080`
 
 Güncelleme yaparken önce `sc.exe stop AppLauncher` ile servisi durdurun, yeniden **Publish** edin, sonra `sc.exe start AppLauncher` ile başlatın. `data` klasörü korunur.
 

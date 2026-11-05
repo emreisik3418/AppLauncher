@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using AppLauncher.Models;
 using AppLauncher.Services;
 using Microsoft.Extensions.Options;
@@ -6,9 +7,19 @@ namespace AppLauncher;
 
 public static class Endpoints
 {
-    public static void MapLauncherApi(this WebApplication app)
+    private static string? UserName(ClaimsPrincipal user) =>
+        user.Identity?.IsAuthenticated == true ? user.Identity.Name : null;
+
+    public static void MapLauncherApi(this WebApplication app, bool authEnabled)
     {
         var api = app.MapGroup("/api");
+        var audit = app.Logger;
+
+        api.MapGet("/me", (ClaimsPrincipal user) => new
+        {
+            authEnabled,
+            name = UserName(user)
+        });
 
         api.MapGet("/status", (AppStore store, IOptions<LauncherOptions> opt) => new
         {
@@ -29,28 +40,34 @@ public static class Endpoints
         api.MapGet("/apps/{id}", (string id, AppStore store) =>
             store.Get(id) is { } a ? Results.Ok(a) : Results.NotFound());
 
-        api.MapPost("/apps", (AppDefinition def, AppStore store) =>
+        api.MapPost("/apps", (AppDefinition def, AppStore store, ClaimsPrincipal user) =>
         {
             var errors = store.Add(def);
+            if (errors.Count == 0) audit.LogInformation("{User} uygulama ekledi: {App}", UserName(user), def.Id);
             return errors.Count == 0 ? Results.Ok(def) : Results.BadRequest(new { errors });
         });
 
-        api.MapPut("/apps/{id}", (string id, AppDefinition def, AppStore store) =>
+        api.MapPut("/apps/{id}", (string id, AppDefinition def, AppStore store, ClaimsPrincipal user) =>
         {
             var errors = store.Update(id, def);
+            if (errors.Count == 0) audit.LogInformation("{User} uygulamayı güncelledi: {App}", UserName(user), id);
             return errors.Count == 0 ? Results.Ok(def) : Results.BadRequest(new { errors });
         });
 
-        api.MapDelete("/apps/{id}", (string id, AppStore store) =>
-            store.Delete(id) ? Results.NoContent() : Results.NotFound());
+        api.MapDelete("/apps/{id}", (string id, AppStore store, ClaimsPrincipal user) =>
+        {
+            if (!store.Delete(id)) return Results.NotFound();
+            audit.LogInformation("{User} uygulamayı sildi: {App}", UserName(user), id);
+            return Results.NoContent();
+        });
 
-        api.MapPost("/apps/{id}/run", (string id, AppStore store, ProcessRunner runner) =>
+        api.MapPost("/apps/{id}/run", (string id, AppStore store, ProcessRunner runner, ClaimsPrincipal user) =>
         {
             var def = store.Get(id);
             if (def is null) return Results.NotFound();
             try
             {
-                return Results.Ok(runner.Start(def, RunTrigger.Manual));
+                return Results.Ok(runner.Start(def, RunTrigger.Manual, UserName(user)));
             }
             catch (InvalidOperationException ex)
             {
@@ -62,8 +79,8 @@ public static class Endpoints
         api.MapGet("/runs", (string? appId, int? take, RunHistory history) =>
             history.Query(appId, take ?? 50));
 
-        api.MapPost("/runs/{runId}/stop", (string runId, ProcessRunner runner) =>
-            runner.Stop(runId) ? Results.Ok() : Results.NotFound(new { error = "Çalışan bir süreç bulunamadı." }));
+        api.MapPost("/runs/{runId}/stop", (string runId, ProcessRunner runner, ClaimsPrincipal user) =>
+            runner.Stop(runId, UserName(user)) ? Results.Ok() : Results.NotFound(new { error = "Çalışan bir süreç bulunamadı." }));
 
         api.MapGet("/runs/{runId}/log", (string runId, RunHistory history) =>
         {
@@ -83,11 +100,12 @@ public static class Endpoints
         // ---- Ham yapılandırma (apps.json) ----
         api.MapGet("/config", (AppStore store) => Results.Text(store.ReadRaw(), "application/json; charset=utf-8"));
 
-        api.MapPut("/config", async (HttpRequest request, AppStore store) =>
+        api.MapPut("/config", async (HttpRequest request, AppStore store, ClaimsPrincipal user) =>
         {
             using var reader = new StreamReader(request.Body);
             var json = await reader.ReadToEndAsync();
             var errors = store.SaveRaw(json);
+            if (errors.Count == 0) audit.LogInformation("{User} apps.json dosyasını kaydetti.", UserName(user));
             return errors.Count == 0 ? Results.Ok() : Results.BadRequest(new { errors });
         });
 

@@ -44,7 +44,8 @@ let appsCache = [];
 
 async function refresh() {
   try {
-    const [status, apps] = await Promise.all([api("/api/status"), api("/api/apps")]);
+    const [status, apps, me] = await Promise.all([api("/api/status"), api("/api/apps"), api("/api/me")]);
+    $("#userInfo").textContent = me.authEnabled ? `Kullanıcı: ${me.name}` : "Giriş kontrolü kapalı";
     $("#serverInfo").textContent = `Sunucu saati: ${fmtFull(status.serverTime)} · ${status.timeZone}`;
     const ce = $("#configError");
     if (status.configError) {
@@ -270,17 +271,18 @@ async function openHistory(appId, name) {
   $("#historyTitle").textContent = appId ? `Geçmiş – ${name}` : "Tüm çalıştırmalar";
   const runs = await api(`/api/runs?take=200${appId ? "&appId=" + encodeURIComponent(appId) : ""}`);
   $("#historyTable").innerHTML = `
-    <thead><tr><th>Başlangıç</th>${appId ? "" : "<th>Uygulama</th>"}<th>Tetikleyen</th><th>Durum</th><th>Süre</th><th>Kod</th><th></th></tr></thead>
+    <thead><tr><th>Başlangıç</th>${appId ? "" : "<th>Uygulama</th>"}<th>Tetikleyen</th><th>Kullanıcı</th><th>Durum</th><th>Süre</th><th>Kod</th><th></th></tr></thead>
     <tbody>${runs.map(r => `
       <tr>
         <td>${fmtFull(r.startedAt)}</td>
         ${appId ? "" : `<td>${esc(r.appName)}</td>`}
         <td>${r.trigger === "Manual" ? "Elle" : "Zamanlama"}</td>
+        <td>${esc(r.startedBy ?? "–")}${r.stoppedBy ? `<br><small>Durduran: ${esc(r.stoppedBy)}</small>` : ""}</td>
         <td><span class="badge b-${r.status}">${STATUS_TR[r.status] ?? r.status}</span>${r.error ? `<br><small>${esc(r.error)}</small>` : ""}</td>
         <td>${duration(r.startedAt, r.endedAt)}</td>
         <td>${r.exitCode ?? "–"}</td>
         <td><button class="btn sm" data-run="${r.id}" data-name="${esc(r.appName)}">Log</button></td>
-      </tr>`).join("") || `<tr><td colspan="7">Kayıt yok.</td></tr>`}
+      </tr>`).join("") || `<tr><td colspan="8">Kayıt yok.</td></tr>`}
     </tbody>`;
   $("#dlgHistory").showModal();
 }

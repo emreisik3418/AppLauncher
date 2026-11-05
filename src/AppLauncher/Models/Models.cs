@@ -75,6 +75,9 @@ public sealed class RunRecord
     public string AppId { get; set; } = "";
     public string AppName { get; set; } = "";
     public RunTrigger Trigger { get; set; }
+    /// <summary>Elle başlatıldıysa başlatan Windows kullanıcısı.</summary>
+    public string? StartedBy { get; set; }
+    public string? StoppedBy { get; set; }
     public RunStatus Status { get; set; } = RunStatus.Running;
     public DateTimeOffset StartedAt { get; set; }
     public DateTimeOffset? EndedAt { get; set; }

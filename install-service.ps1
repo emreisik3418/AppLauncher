@@ -23,12 +23,24 @@ if ($existing -and $existing.Status -ne 'Stopped') {
 }
 
 Write-Host "Yayınlanıyor -> $InstallDir"
-# data klasörü (apps.json, geçmiş, loglar) korunur; publish onu silmez.
+# data klasörü ve appsettings.Local.json korunur; publish onları ezmez.
 dotnet publish $project -c Release -r win-x64 --self-contained false -o $InstallDir
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish başarısız." }
 
+$local = Join-Path $InstallDir "appsettings.Local.json"
+if (-not (Test-Path $local)) {
+    Write-Host "appsettings.Local.json oluşturuluyor (izinli kullanıcı: $env:USERNAME)"
+    $cfg = [ordered]@{
+        Urls = "http://0.0.0.0:$Port"
+        Launcher = [ordered]@{
+            Auth = [ordered]@{ Enabled = $true; AllowedUsers = @($env:USERNAME); AllowedGroups = @() }
+        }
+    }
+    $cfg | ConvertTo-Json -Depth 5 | Set-Content -Path $local -Encoding UTF8
+}
+
 $exe = Join-Path $InstallDir "AppLauncher.exe"
-$binPath = "`"$exe`" --urls http://localhost:$Port"
+$binPath = "`"$exe`""
 
 if (-not $existing) {
     Write-Host "Servis oluşturuluyor..."
@@ -38,10 +50,15 @@ if (-not $existing) {
     sc.exe config $ServiceName binPath= $binPath start= auto | Out-Null
 }
 
-# Hata ile kapanırsa 1 dk sonra yeniden başlat
 sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
+
+$ruleName = "AppLauncher $Port"
+if (-not (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue)) {
+    New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Action Allow -Protocol TCP -LocalPort $Port | Out-Null
+}
 
 Start-Service -Name $ServiceName
 Write-Host ""
-Write-Host "Kuruldu ve başlatıldı. Arayüz: http://localhost:$Port" -ForegroundColor Green
-Write-Host "Yapılandırma: $InstallDir\data\apps.json"
+Write-Host "Kuruldu ve başlatıldı. Arayüz: http://$($env:COMPUTERNAME):$Port" -ForegroundColor Green
+Write-Host "İzinli siciller: $local"
+Write-Host "Uygulama listesi: $InstallDir\data\apps.json"

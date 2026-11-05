@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using AppLauncher;
+using AppLauncher.Security;
 using AppLauncher.Services;
 using Microsoft.Extensions.Hosting.WindowsServices;
 
@@ -17,6 +18,12 @@ var options = new WebApplicationOptions
 
 var builder = WebApplication.CreateBuilder(options);
 
+// Sunucuya özel ayarlar (adres, izinli siciller). Bu dosya publish ile ezilmez, en son okunur ve
+// değiştirildiğinde otomatik yeniden yüklenir.
+builder.Configuration.AddJsonFile(
+    Path.Combine(builder.Environment.ContentRootPath, "appsettings.Local.json"),
+    optional: true, reloadOnChange: true);
+
 builder.Host.UseWindowsService(o => o.ServiceName = "AppLauncher");
 
 builder.Services.Configure<LauncherOptions>(builder.Configuration.GetSection("Launcher"));
@@ -24,6 +31,11 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 {
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
+
+// Windows Authentication (Enabled değişikliği için servisi yeniden başlatmak gerekir;
+// izinli sicil listesi ise anında uygulanır)
+var authEnabled = builder.Configuration.GetValue("Launcher:Auth:Enabled", true);
+if (authEnabled) builder.Services.AddLauncherWindowsAuth();
 
 builder.Services.AddSingleton<AppStore>();
 builder.Services.AddSingleton<RunHistory>();
@@ -36,8 +48,19 @@ var app = builder.Build();
 app.Services.GetRequiredService<AppStore>();
 app.Services.GetRequiredService<RunHistory>();
 
+if (authEnabled)
+{
+    // Statik dosyalardan (arayüz) ÖNCE olmalı ki arayüz de korunsun
+    app.UseAuthentication();
+    app.UseAuthorization();
+}
+else
+{
+    app.Logger.LogWarning("Windows Authentication KAPALI. Adrese erişebilen herkes uygulamayı kullanabilir.");
+}
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
-app.MapLauncherApi();
+app.MapLauncherApi(authEnabled);
 
 app.Run();

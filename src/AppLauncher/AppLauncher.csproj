@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="Cronos" Version="0.8.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="8.0.11" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
   </ItemGroup>
 
@@ -17,6 +18,9 @@
   <ItemGroup>
     <Content Remove="data\**" />
     <None Remove="data\**" />
+    <!-- Sunucuya özel ayarlar: publish ile sunucudaki dosyanın üzerine yazılmasın -->
+    <Content Remove="appsettings.Local.json" />
+    <None Remove="appsettings.Local.json" />
   </ItemGroup>
 
 </Project>
