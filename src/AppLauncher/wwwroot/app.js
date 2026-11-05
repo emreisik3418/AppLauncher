@@ -15,6 +15,7 @@ const STATUS_TR = {
 const $ = (s, root = document) => root.querySelector(s);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (iso) => iso ? new Date(iso).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" }) : "–";
+const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString("tr-TR") : "–";
 const fmtFull = (iso) => iso ? new Date(iso).toLocaleString("tr-TR") : "–";
 const duration = (a, b) => {
   if (!a) return "–";
@@ -103,6 +104,15 @@ function cardHtml(v) {
     ? (v.keepAlivePaused ? `<span class="badge b-Stopped" title="Elle durduruldu. Çalıştır deyince sürekli çalışma devam eder.">Beklemede</span>`
                          : `<span class="badge b-ka">Sürekli</span>`)
     : "";
+  let kaInfo = "";
+  if (a.keepAlive && !running) {
+    if (!a.enabled) kaInfo = "Otomatik çalıştırma kapalı olduğu için yeniden başlatılmayacak.";
+    else if (v.keepAlivePaused) kaInfo = "Elle durduruldu. Tekrar başlatmak için Çalıştır'a basın.";
+    else if (v.keepAliveNextStart) {
+      const secs = Math.max(0, Math.round((new Date(v.keepAliveNextStart) - new Date()) / 1000));
+      kaInfo = secs <= 5 ? "Yeniden başlatılıyor…" : `${fmtTime(v.keepAliveNextStart)} saatinde yeniden başlatılacak (${secs} sn)`;
+    }
+  }
   const flags = [];
   if (!a.keepAlive && a.resumeInterrupted) flags.push("Yarıda kalırsa yeniden başlar");
   if (!a.keepAlive && a.runMissed && a.schedule && a.schedule.type !== "None") flags.push("Kaçırılanı telafi eder");
@@ -124,6 +134,7 @@ function cardHtml(v) {
         ${v.scheduleError ? `<br><span style="color:var(--err)">${esc(v.scheduleError)}</span>` : ""}</dd>
       <dt>Sonraki</dt><dd>${fmt(v.nextRun)}</dd>
       <dt>Son çalışma</dt><dd>${last ? `${fmt(last.startedAt)} · ${duration(last.startedAt, last.endedAt)}${last.exitCode != null ? " · kod " + last.exitCode : ""}${last.trigger && last.trigger !== "Manual" && last.trigger !== "Schedule" ? " · " + TRIGGER_TR[last.trigger] : ""}` : "–"}</dd>
+      ${kaInfo ? `<dt>Durum</dt><dd class="ka-info">${esc(kaInfo)}</dd>` : ""}
       ${flags.length ? `<dt>Kurtarma</dt><dd class="flags">${flags.map(f => `<span class="flag">${esc(f)}</span>`).join("")}</dd>` : ""}
     </dl>
     <div class="card-actions">

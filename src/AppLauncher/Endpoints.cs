@@ -163,6 +163,9 @@ public static class Endpoints
             cron,
             scheduleText = a.KeepAlive ? "Sürekli çalışır (kapanırsa yeniden başlatılır)" : ScheduleHelper.Describe(a.Schedule),
             keepAlivePaused = a.KeepAlive && state.IsPaused(a.Id),
+            keepAliveNextStart = a.KeepAlive && a.Enabled && !state.IsPaused(a.Id) && !runner.IsRunning(a.Id)
+                ? KeepAlivePolicy.NextStartAt(a, history.Query(a.Id, 20), DateTimeOffset.Now)
+                : null,
             scheduleError,
             nextRun,
             activeRuns = runner.ActiveRuns(a.Id),

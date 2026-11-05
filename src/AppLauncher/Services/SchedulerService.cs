@@ -13,9 +13,6 @@ namespace AppLauncher.Services;
 /// </summary>
 public sealed class SchedulerService : BackgroundService
 {
-    private static readonly TimeSpan QuickExit = TimeSpan.FromSeconds(60);
-    private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(5);
-
     private readonly AppStore _store;
     private readonly ProcessRunner _runner;
     private readonly RunHistory _history;
@@ -179,15 +176,13 @@ public sealed class SchedulerService : BackgroundService
 
             try
             {
-                var recent = _history.Query(app.Id, 12);
-                var last = recent.FirstOrDefault();
-                if (last?.EndedAt is { } ended)
-                {
-                    var wait = RestartDelay(app, recent);
-                    if (now < ended + wait) continue;
-                    if (wait > TimeSpan.FromSeconds(Math.Max(1, app.KeepAliveDelaySeconds)))
-                        _log.LogWarning("{App} art arda hızlı kapanıyor; yeniden başlatma {Wait} sn geciktirildi.", app.Id, (int)wait.TotalSeconds);
-                }
+                var recent = _history.Query(app.Id, 20);
+                var next = KeepAlivePolicy.NextStartAt(app, recent, now);
+                if (next is null || now < next.Value) continue;
+
+                var wait = KeepAlivePolicy.Delay(app, recent, now);
+                if (wait > TimeSpan.FromSeconds(Math.Max(1, app.KeepAliveDelaySeconds)))
+                    _log.LogWarning("{App} art arda hızlı kapanıyor; yeniden başlatma {Wait} sn geciktirildi.", app.Id, (int)wait.TotalSeconds);
 
                 _log.LogInformation("{App} çalışmıyor, sürekli çalışma için başlatılıyor.", app.Id);
                 TryStart(app, RunTrigger.KeepAlive);
@@ -197,21 +192,6 @@ public sealed class SchedulerService : BackgroundService
                 _log.LogError(ex, "{App} sürekli çalışma kontrolünde hata.", app.Id);
             }
         }
-    }
-
-    /// <summary>
-    /// Uygulama 60 sn'den kısa sürede art arda kapanıyorsa (ör. hatalı yapılandırma) bekleme süresini
-    /// her seferinde ikiye katlar, en fazla 5 dk. Bir kez düzgün çalışınca sıfırlanır.
-    /// </summary>
-    private static TimeSpan RestartDelay(AppDefinition app, List<RunRecord> recent)
-    {
-        var baseDelay = TimeSpan.FromSeconds(Math.Clamp(app.KeepAliveDelaySeconds, 1, 3600));
-        var quickExits = recent.TakeWhile(r => r.EndedAt is { } e && e - r.StartedAt < QuickExit
-                                               && r.Status != RunStatus.Interrupted).Count();
-        if (quickExits <= 1) return baseDelay;
-        var factor = Math.Pow(2, Math.Min(quickExits - 1, 10));
-        var cap = Math.Max(baseDelay.TotalSeconds, MaxBackoff.TotalSeconds);
-        return TimeSpan.FromSeconds(Math.Min(baseDelay.TotalSeconds * factor, cap));
     }
 
     private bool TryStart(AppDefinition app, RunTrigger trigger)

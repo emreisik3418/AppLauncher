@@ -113,7 +113,8 @@ Her uygulama için formdaki **Süreklilik ve yeniden başlatma** bölümünden s
 **1. Sürekli çalışsın (`keepAlive`)**: Hep açık kalması gereken uygulamalar içindir.
 - Servis açılınca otomatik başlar.
 - Uygulama kendi kendine kapanırsa veya çökerse `keepAliveDelaySeconds` sonra yeniden başlatılır.
-- Uygulama 1 dakikadan kısa sürede art arda kapanıyorsa (ör. yapılandırma hatası) bekleme süresi her seferinde ikiye katlanır, en fazla 5 dakikaya çıkar. Uygulama bir kez düzgün çalışınca bekleme sıfırlanır.
+- Çökme döngüsü koruması: Uygulama son 10 dakika içinde 3'ten fazla kez, her seferinde 1 dakika dolmadan kapandıysa (ör. yapılandırma hatası) bekleme süresi her seferinde ikiye katlanır, en fazla 2 dakikaya çıkar. Uygulama bir kez 1 dakikadan uzun çalışınca bekleme sıfırlanır.
+- Uygulama kapalıyken kartta ne zaman yeniden başlatılacağı görünür.
 - Arayüzden **Durdur** derseniz uygulama **Beklemede** olur ve siz tekrar **Çalıştır** diyene kadar yeniden başlatılmaz. Bu durum servis yeniden başlasa da korunur.
 
 **2. Yarıda kalanı yeniden başlat (`resumeInterrupted`)**: Örneğin 22:00'de başlayan iş, 23:00'teki update restart'ında kesildiyse servis açılınca iş baştan bir kez daha çalıştırılır. Uygulama kaldığı yerden devam edemez, baştan başlar. İki kez çalışması sorun çıkarmayacak işlerde kullanın.

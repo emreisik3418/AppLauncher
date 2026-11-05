@@ -88,6 +88,7 @@ fieldset.recovery label.inline { margin-bottom: 8px; }
 .indent { margin: 2px 0 8px 24px; }
 .indent label { margin-bottom: 4px; max-width: 260px; }
 .help { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.ka-info { color: var(--warn); font-weight: 600; }
 .b-ka { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); }
 .flags { display: flex; flex-wrap: wrap; gap: 4px; }
 .flag { font-size: 11.5px; padding: 1px 7px; border-radius: 6px; background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
