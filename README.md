@@ -41,6 +41,30 @@ Betik şunları yapar: projeyi yayınlar, servisi oluşturur (otomatik başlang�
 
 Kaldırmak için: `.\uninstall-service.ps1`
 
+### sc.exe komutlarıyla kurma
+
+Hazır betik: repo klasöründeki `install-service.cmd` dosyasına sağ tıklayıp **Yönetici olarak çalıştır** seçin. Kaldırmak için `uninstall-service.cmd` dosyasını aynı şekilde çalıştırın.
+
+Komutları elle çalıştırmak isterseniz, **yönetici** komut isteminde (cmd):
+
+```cmd
+:: 1) Yayınla
+dotnet publish src\AppLauncher\AppLauncher.csproj -c Release -r win-x64 --self-contained false -o C:\Services\AppLauncher
+
+:: 2) Servisi oluştur  (binPath= / start= sonrasındaki BOŞLUK zorunlu)
+sc.exe create AppLauncher binPath= "\"C:\Services\AppLauncher\AppLauncher.exe\" --urls http://localhost:5080" start= auto DisplayName= "App Launcher"
+sc.exe description AppLauncher "Uygulamalari web arayuzunden yonetir ve zamanlanmis calistirir."
+
+:: 3) Hata alırsa 1 dk sonra yeniden başlat
+sc.exe failure AppLauncher reset= 86400 actions= restart/60000/restart/60000/restart/60000
+
+:: 4) Başlat ve kontrol et
+sc.exe start AppLauncher
+sc.exe query AppLauncher
+```
+
+Diğer komutlar: `sc.exe stop AppLauncher`, `sc.exe delete AppLauncher` (kaldırır), `sc.exe qc AppLauncher` (ayarları gösterir).
+
 ## apps.json
 
 Konum: uygulama klasöründeki `data\apps.json` (servis kurulumunda `C:\Services\AppLauncher\data\apps.json`).
