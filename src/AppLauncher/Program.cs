@@ -69,7 +69,12 @@ else
 }
 
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    // Tarayıcı arayüz dosyalarını (app.js, style.css) her açılışta sunucuya sorsun; güncellemeden sonra
+    // eski sürümün önbellekten kullanılmasını önler. Dosya değişmediyse 304 döner, ek yük yoktur.
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache"
+});
 app.MapLauncherAuth(authEnabled);
 app.MapLauncherApi(authEnabled);
 
