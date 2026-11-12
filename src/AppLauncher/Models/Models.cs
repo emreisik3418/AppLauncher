@@ -46,6 +46,20 @@ public sealed class AppDefinition
     /// <summary>Servis kapalıyken gelen zamanlama, servis açılınca bir kez çalıştırılır.</summary>
     public bool RunMissed { get; set; }
 
+    // ---- Hata algılama ----
+
+    /// <summary>false ise bu uygulamanın çıktısında hata satırı aranmaz.</summary>
+    public bool DetectErrors { get; set; } = true;
+
+    /// <summary>null: genel ayar (Launcher:ErrorDetection:StdErrIsError) kullanılır.</summary>
+    public bool? StdErrIsError { get; set; }
+
+    /// <summary>Genel kalıplara ek olarak hata sayılacak satırlar (regex).</summary>
+    public List<string> ErrorPatterns { get; set; } = new();
+
+    /// <summary>Bu kalıplara uyan satırlar hata sayılmaz (regex), ör. "0 error".</summary>
+    public List<string> IgnoreErrorPatterns { get; set; } = new();
+
     /// <summary>ResumeInterrupted / RunMissed için sınır: bundan daha eski kesinti/kaçırmalar telafi edilmez (saat).</summary>
     public int RecoveryWindowHours { get; set; } = 6;
 
@@ -95,7 +109,22 @@ public enum RunTrigger
     CatchUp     // servis kapalıyken kaçırılan zamanlamanın telafisi
 }
 
-public enum RunStatus { Running, Succeeded, Failed, Stopped, TimedOut, Interrupted }
+public enum RunStatus
+{
+    Running,
+    Succeeded,
+    Failed,
+    Stopped,
+    TimedOut,
+    Interrupted,
+    CompletedWithErrors // çıkış kodu 0 ama çıktıda hata satırları var
+}
+
+public sealed class ErrorLine
+{
+    public DateTimeOffset At { get; set; }
+    public string Line { get; set; } = "";
+}
 
 public sealed class RunRecord
 {
@@ -113,6 +142,19 @@ public sealed class RunRecord
     public int? ProcessId { get; set; }
     public string? LogFile { get; set; }
     public string? Error { get; set; }
+
+    // ---- Çıktıda görülen hatalar ----
+    public int ErrorCount { get; set; }
+    public DateTimeOffset? FirstErrorAt { get; set; }
+    public DateTimeOffset? LastErrorAt { get; set; }
+
+    /// <summary>Son birkaç hata satırı (en yeni sonda).</summary>
+    public List<ErrorLine>? RecentErrors { get; set; }
+
+    /// <summary>"Gördüm" denildiği andaki hata sayısı; kartta yalnızca bundan sonrakiler uyarı olarak gösterilir.</summary>
+    public int AcknowledgedErrors { get; set; }
+    public string? AcknowledgedBy { get; set; }
+    public DateTimeOffset? AcknowledgedAt { get; set; }
 
     /// <summary>Sunucu/servis kapanırken yarıda kaldı ve henüz açılışta değerlendirilmedi.</summary>
     public bool Recoverable { get; set; }

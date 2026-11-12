@@ -18,6 +18,7 @@
     </div>
     <div class="actions">
       <input id="search" type="search" placeholder="Ara…">
+      <button class="btn err-chip hidden" id="errChip"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg> <span id="errChipText"></span></button>
       <button class="btn ghost" id="btnHistoryAll">Tüm geçmiş</button>
       <button class="btn ghost" id="btnConfig">apps.json</button>
       <button class="btn primary" id="btnAdd">+ Yeni uygulama</button>
@@ -72,6 +73,26 @@
       <label>Ortam değişkenleri (her satıra ANAHTAR=DEĞER)
         <textarea name="env" rows="2" placeholder="ORTAM=PROD"></textarea>
       </label>
+
+      <details class="errdet" id="errDetails">
+        <summary>Hata algılama</summary>
+        <label class="inline"><input type="checkbox" name="detectErrors" checked> Log çıktısında hata satırlarını algıla ve kartta göster</label>
+        <label>Hata akışı (stderr, logda [ERR] ile görünen) satırları
+          <select name="stdErrIsError">
+            <option value="">Genel ayarı kullan</option>
+            <option value="true">Hata say</option>
+            <option value="false">Hata sayma (uygulama normal mesajlarını da buraya yazıyorsa)</option>
+          </select>
+        </label>
+        <label>Ek hata kalıpları (regex, her satıra bir)
+          <textarea name="errorPatterns" rows="2" placeholder="Bağlantı kurulamadı&#10;timeout"></textarea>
+        </label>
+        <label>Hata sayılmayacak kalıplar (regex, her satıra bir)
+          <textarea name="ignoreErrorPatterns" rows="2" placeholder="ErrorCount=0"></textarea>
+        </label>
+        <small class="help">Varsayılan olarak ERR, ERROR, FATAL, CRITICAL kelimelerini ve “…Exception” içeren satırlar hata sayılır
+          (büyük/küçük harf fark etmez). Genel kalıplar appsettings.json → Launcher:ErrorDetection bölümündedir.</small>
+      </details>
 
       <fieldset class="recovery">
         <legend>Süreklilik ve yeniden başlatma</legend>
@@ -150,6 +171,8 @@
     <h2 id="logTitle">Log</h2>
     <pre id="logContent"></pre>
     <div class="dlg-actions">
+      <span class="log-err-count" id="logErrCount"></span>
+      <label class="inline"><input type="checkbox" id="logErrorsOnly"> Sadece hata satırları</label>
       <label class="inline"><input type="checkbox" id="logFollow" checked> Sona kaydır</label>
       <button class="btn ghost" data-close>Kapat</button>
     </div>

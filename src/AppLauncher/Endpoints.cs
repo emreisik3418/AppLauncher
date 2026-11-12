@@ -91,17 +91,38 @@ public static class Endpoints
             return runner.Stop(runId, UserName(user)) ? Results.Ok() : Results.NotFound(new { error = "Çalışan bir süreç bulunamadı." });
         });
 
+        api.MapPost("/runs/{runId}/ack", (string runId, RunHistory history, ClaimsPrincipal user) =>
+        {
+            var rec = history.Acknowledge(runId, UserName(user));
+            if (rec is null) return Results.NotFound();
+            audit.LogInformation("{User} {App} hatalarını gördü olarak işaretledi ({Count}).", UserName(user), rec.AppId, rec.ErrorCount);
+            return Results.Ok(rec);
+        });
+
+        // Log satırları + hangi satırların hata olduğu (log penceresinde vurgulama / yalnızca hatalar için)
+        api.MapGet("/runs/{runId}/lines", (string runId, RunHistory history, AppStore store, IOptionsMonitor<LauncherOptions> opt) =>
+        {
+            var rec = history.Get(runId);
+            if (rec?.LogFile is null || !File.Exists(rec.LogFile))
+                return Results.Ok(new { truncated = false, lines = Array.Empty<object>() });
+
+            var (text, truncated) = ReadLogTail(rec.LogFile);
+            var detector = ErrorDetector.Create(opt.CurrentValue.ErrorDetection, store.Get(rec.AppId));
+            var lines = text.Split('\n')
+                .Select(l => l.TrimEnd('\r'))
+                .Where((l, i) => !(truncated && i == 0)) // kırpılmış ilk satır yarım olabilir
+                .Select(l => new { t = l, e = detector.IsLogLineError(l) })
+                .ToList();
+            if (lines.Count > 0 && lines[^1].t.Length == 0) lines.RemoveAt(lines.Count - 1);
+            return Results.Ok(new { truncated, lines });
+        });
+
         api.MapGet("/runs/{runId}/log", (string runId, RunHistory history) =>
         {
             var rec = history.Get(runId);
             if (rec?.LogFile is null || !File.Exists(rec.LogFile)) return Results.Text("(log bulunamadı)");
 
-            const long maxBytes = 512 * 1024; // son 512 KB
-            using var fs = new FileStream(rec.LogFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            var truncated = fs.Length > maxBytes;
-            if (truncated) fs.Seek(-maxBytes, SeekOrigin.End);
-            using var sr = new StreamReader(fs);
-            var text = sr.ReadToEnd();
+            var (text, truncated) = ReadLogTail(rec.LogFile);
             if (truncated) text = "... (log kırpıldı, yalnızca son 512 KB gösteriliyor)\n" + text;
             return Results.Text(text, "text/plain; charset=utf-8");
         });
@@ -139,6 +160,17 @@ public static class Endpoints
                 return Results.BadRequest(new { error = ex.Message });
             }
         });
+    }
+
+    /// <summary>Log dosyasının son 512 KB'ını okur (dosya yazılırken de okunabilir).</summary>
+    private static (string text, bool truncated) ReadLogTail(string path)
+    {
+        const long maxBytes = 512 * 1024;
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        var truncated = fs.Length > maxBytes;
+        if (truncated) fs.Seek(-maxBytes, SeekOrigin.End);
+        using var sr = new StreamReader(fs);
+        return (sr.ReadToEnd(), truncated);
     }
 
     private static object BuildView(AppDefinition a, ProcessRunner runner, RunHistory history, StateStore state, TimeZoneInfo tz)

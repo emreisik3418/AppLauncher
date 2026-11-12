@@ -141,6 +141,12 @@ public sealed class AppStore : IDisposable
             }
             if (a.KeepAliveDelaySeconds is < 1 or > 3600)
                 errors.Add($"{label}: KeepAliveDelaySeconds 1 ile 3600 arasında olmalı.");
+            a.ErrorPatterns ??= new();
+            a.IgnoreErrorPatterns ??= new();
+            foreach (var p in a.ErrorPatterns.Concat(a.IgnoreErrorPatterns).Where(p => !string.IsNullOrWhiteSpace(p)))
+                if (ErrorDetector.ValidatePattern(p) is { } perr)
+                    errors.Add($"{label}: Geçersiz hata kalıbı '{p}': {perr}");
+
             if (a.RecoveryWindowHours is < 1 or > 720)
                 errors.Add($"{label}: RecoveryWindowHours 1 ile 720 arasında olmalı.");
 

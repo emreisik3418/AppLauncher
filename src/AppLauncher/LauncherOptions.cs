@@ -25,6 +25,9 @@ public sealed class LauncherOptions
     /// Sunucu yeni açıldığında ağ, veritabanı vb. hazır olsun diye.</summary>
     public int StartupDelaySeconds { get; set; } = 30;
 
+    /// <summary>Çıktıda hata satırı algılama (tüm uygulamalar için varsayılan).</summary>
+    public Services.ErrorDetectionOptions ErrorDetection { get; set; } = new();
+
     /// <summary>Windows Authentication ve izinli siciller.</summary>
     public Security.AuthOptions Auth { get; set; } = new();
 

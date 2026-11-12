@@ -6,6 +6,7 @@ Kendi yazdığınız uygulamaları (exe, bat, cmd, ps1, dll, py) bir web arayüz
 
 - Web arayüzü: uygulama listesi, durum, sonraki çalışma zamanı, son sonuç
 - Elle **Çalıştır / Durdur**, canlı log izleme, çalıştırma geçmişi
+- **Log'da hata algılama**: uygulama çalışmaya devam etse bile çıktısındaki ERR/ERROR satırları kartta kırmızı uyarı olarak gösterilir
 - Uygulama **ekleme / düzenleme / silme** (arayüzden veya `apps.json` dosyasını elle düzenleyerek)
 - `apps.json` elle değiştirildiğinde **otomatik yeniden yüklenir**. Dosya bozuksa son geçerli hali kullanılır, hata arayüzde gösterilir
 - Zamanlama tipleri: her gün, haftalık, ayın N. günü, ayın son günü, ayın 1./2./3./4./**son** X günü, serbest cron
@@ -105,6 +106,41 @@ Konum: uygulama klasöründeki `data\apps.json` (servis kurulumunda `C:\Services
 | `resumeInterrupted` | Sunucu/servis yeniden başlarken yarıda kalan çalıştırma, servis açılınca baştan bir kez çalıştırılır |
 | `runMissed` | Servis kapalıyken gelen zamanlama, servis açılınca bir kez çalıştırılır |
 | `recoveryWindowHours` | Servis bundan uzun süre kapalı kaldıysa yukarıdaki iki telafi yapılmaz (varsayılan 6) |
+
+## Log'da hata algılama
+
+Uygulamanın çıktısı çalışırken satır satır taranır. Hata satırı görülünce uygulama durmasa bile:
+
+- Kart kırmızı çerçeveli olur. Kartta **"N hata satırı"** paneli, son hata satırı ve zamanı görünür.
+- Üst çubukta **"N uygulamada hata var"** düğmesi çıkar. Düğmeye tıklayınca yalnızca hatalı uygulamalar listelenir. Tarayıcı sekmesinin başlığında da hatalı uygulama sayısı görünür.
+- **Hataları gör** düğmesi log penceresini **Sadece hata satırları** filtresiyle açar. Tam logda hata satırları kırmızı vurgulanır.
+- **Gördüm** düğmesi uyarıyı kapatır. Yeni hata satırı gelirse uyarı tekrar görünür. Uyarıyı kimin kapattığı geçmişte görünür.
+- Çıkış kodu 0 olup çıktısında hata satırı bulunan çalıştırmalar **"Hatalarla bitti"** durumunda kaydedilir.
+- Çalıştırmadaki ilk hata satırı Olay Görüntüleyicisi'ne uyarı olarak da yazılır.
+
+**Neler hata sayılır** (`appsettings.json` → `Launcher:ErrorDetection`):
+
+```json
+"ErrorDetection": {
+  "Patterns": [ "\\b(ERR|ERROR|FATAL|CRITICAL)\\b", "\\b\\w+Exception\\b", "\\bUnhandled exception\\b", "\\bTraceback \\(most recent call last\\)" ],
+  "IgnorePatterns": [ "\\b0 (errors?|hata)\\b" ],
+  "IgnoreCase": true,
+  "StdErrIsError": true
+}
+```
+
+- **Patterns**: Hata sayılacak satırların kalıpları (regex). Varsayılan kalıplar şunları yakalar: `ERR`, `ERROR`, `[ERROR]`, `error:`, `FATAL`, `CRITICAL` gibi kelimeler, `NullReferenceException` gibi istisnalar ve Python hata izleri. `ERRORS` veya `TERROR` gibi kelimelerin içinde geçen eşleşmeler sayılmaz.
+- **IgnorePatterns**: Bu kalıplara uyan satırlar hiç hata sayılmaz. Örneğin "0 errors" satırı varsayılan olarak yok sayılır.
+- **StdErrIsError**: Uygulamanın hata akışına (stderr) yazdığı her satır hata sayılır. Bu satırlar logda `[ERR]` ile görünür.
+
+**Uygulamaya özel ayarlar**: Formdaki **Hata algılama** bölümünde ya da `apps.json` içinde yapılır:
+
+| Alan | Açıklama |
+|---|---|
+| `detectErrors` | `false` ise bu uygulamada hata aranmaz |
+| `stdErrIsError` | `null` (genel ayar), `true` veya `false`. Normal mesajlarını da stderr'e yazan uygulamalarda `false` yapın. Örneğin Python `logging` modülü varsayılan olarak stderr'e yazar |
+| `errorPatterns` | Genel kalıplara ek kalıplar, ör. `["Bağlantı kurulamadı", "timeout"]` |
+| `ignoreErrorPatterns` | Bu uygulamada hata sayılmayacak satırlar, ör. `["ErrorCount=0"]` |
 
 ## Sunucu yeniden başlatıldığında (Windows update vb.)
 
@@ -244,6 +280,7 @@ src/AppLauncher/
   Services/AppStore.cs       apps.json okuma/yazma + dosya izleme
   Services/ScheduleHelper.cs Zamanlama → cron dönüşümü (Cronos)
   Services/SchedulerService.cs  Zamanlama, sürekli çalışma, açılışta kurtarma
+  Services/ErrorDetector.cs  Çıktıda hata satırı algılama
   Services/StateStore.cs     Son kontrol zamanı ve beklemedeki uygulamalar (data/state.json)
   Services/ProcessRunner.cs  Süreç başlatma/durdurma, loglama, zaman aşımı
   Services/RunHistory.cs     Çalıştırma geçmişi (data/history.json)

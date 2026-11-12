@@ -55,7 +55,7 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .b-Running { background: color-mix(in srgb, var(--run) 15%, transparent); color: var(--run); }
 .b-Succeeded { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
-.b-Failed, .b-TimedOut { background: color-mix(in srgb, var(--err) 15%, transparent); color: var(--err); }
+.b-Failed, .b-TimedOut, .b-CompletedWithErrors { background: color-mix(in srgb, var(--err) 15%, transparent); color: var(--err); }
 .b-Stopped, .b-Interrupted { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
 .b-off { background: var(--bg); color: var(--muted); }
 
@@ -89,6 +89,35 @@ fieldset.recovery label.inline { margin-bottom: 8px; }
 .indent label { margin-bottom: 4px; max-width: 260px; }
 .help { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .ka-info { color: var(--warn); font-weight: 600; }
+/* ---- hata uyarıları ---- */
+.badges { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.badge svg { vertical-align: -3px; width: 13px; height: 13px; }
+.b-err-strong { background: var(--err); color: #fff; }
+.card.has-errors { border-color: var(--err); box-shadow: 0 0 0 1px var(--err), var(--shadow); }
+.err-panel { border-radius: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--err) 10%, var(--card)); border: 1px solid color-mix(in srgb, var(--err) 35%, transparent); color: var(--err); display: flex; flex-direction: column; gap: 8px; }
+.err-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+.err-head svg { flex: none; }
+.err-head span { color: color-mix(in srgb, var(--err) 75%, var(--text)); }
+.err-time { margin-left: auto; font-size: 12px; }
+.err-line { display: block; font: 12px/1.4 Consolas, monospace; background: var(--card); color: var(--text); border-left: 3px solid var(--err); padding: 6px 8px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.err-actions { display: flex; gap: 6px; }
+.err-btn { background: var(--err); border-color: var(--err); color: #fff; }
+.err-btn:hover { filter: brightness(1.08); border-color: var(--err); }
+.err-chip { background: var(--err); border-color: var(--err); color: #fff; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; animation: errpulse 2s ease-in-out 3; }
+.err-chip:hover { border-color: var(--err); filter: brightness(1.08); }
+.err-chip.active { background: transparent; color: var(--err); animation: none; }
+@keyframes errpulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--err) 30%, transparent); } }
+.err-txt { color: var(--err); font-weight: 600; }
+#logContent .ll-err { color: #ff8b8b; background: rgba(255, 80, 80, .14); display: inline-block; width: 100%; }
+#logContent .ll-info { color: #8b93a5; font-style: italic; }
+.log-err-count { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; margin-right: auto; }
+.log-err-count.has { color: var(--err); font-weight: 600; }
+.dlg-actions label.inline:first-of-type { margin-right: 0; }
+details.errdet { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin: 6px 0 0; }
+details.errdet summary { cursor: pointer; color: var(--muted); }
+details.errdet[open] summary { margin-bottom: 10px; }
+details.errdet label.inline { margin-bottom: 8px; }
+details.errdet + fieldset { margin-top: 12px; }
 .b-ka { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); }
 .flags { display: flex; flex-wrap: wrap; gap: 4px; }
 .flag { font-size: 11.5px; padding: 1px 7px; border-radius: 6px; background: var(--bg); color: var(--muted); border: 1px solid var(--line); }

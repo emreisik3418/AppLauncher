@@ -75,6 +75,22 @@ public sealed class RunHistory
         return list;
     }
 
+    /// <summary>Kartta gösterilen hata uyarısını kapatır (o ana kadarki hatalar "görüldü" sayılır).</summary>
+    public RunRecord? Acknowledge(string runId, string? user)
+    {
+        RunRecord? rec;
+        lock (_lock) rec = _runs.FirstOrDefault(r => r.Id == runId);
+        if (rec is null) return null;
+        lock (rec)
+        {
+            rec.AcknowledgedErrors = rec.ErrorCount;
+            rec.AcknowledgedBy = user;
+            rec.AcknowledgedAt = DateTimeOffset.Now;
+        }
+        Save();
+        return rec;
+    }
+
     public RunRecord? Get(string id)
     {
         lock (_lock) return _runs.FirstOrDefault(r => r.Id == id);

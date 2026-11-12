@@ -9,8 +9,18 @@ const TRIGGER_TR = {
 };
 const STATUS_TR = {
   Running: "Çalışıyor", Succeeded: "Başarılı", Failed: "Hatalı",
-  Stopped: "Durduruldu", TimedOut: "Zaman aşımı", Interrupted: "Yarıda kaldı"
+  Stopped: "Durduruldu", TimedOut: "Zaman aşımı", Interrupted: "Yarıda kaldı",
+  CompletedWithErrors: "Hatalarla bitti"
 };
+const WARN_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
+let filterErrors = false;
+
+/** Kartta uyarı gösterilecek çalıştırma: görülmemiş hatası olan çalışan veya son çalıştırma. */
+function errorRunOf(v) {
+  const runs = [...v.activeRuns];
+  if (v.lastRun && !runs.some(r => r.id === v.lastRun.id)) runs.push(v.lastRun);
+  return runs.find(r => (r.errorCount || 0) > (r.acknowledgedErrors || 0)) || null;
+}
 
 const $ = (s, root = document) => root.querySelector(s);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -84,8 +94,19 @@ function renderUser(me) {
 
 function render() {
   const q = $("#search").value.trim().toLocaleLowerCase("tr");
-  const list = appsCache.filter(v => !q ||
-    [v.app.id, v.app.name, v.app.description, v.app.path].join(" ").toLocaleLowerCase("tr").includes(q));
+  const withErrors = appsCache.filter(v => errorRunOf(v));
+  if (withErrors.length === 0) filterErrors = false;
+
+  const chip = $("#errChip");
+  chip.classList.toggle("hidden", withErrors.length === 0);
+  chip.classList.toggle("active", filterErrors);
+  $("#errChipText").textContent = filterErrors
+    ? `${withErrors.length} hatalı uygulama gösteriliyor · tümünü göster`
+    : `${withErrors.length} uygulamada hata var`;
+  document.title = (withErrors.length ? `(${withErrors.length}) ` : "") + "App Launcher";
+
+  const list = appsCache.filter(v => (!filterErrors || errorRunOf(v)) && (!q ||
+    [v.app.id, v.app.name, v.app.description, v.app.path].join(" ").toLocaleLowerCase("tr").includes(q)));
 
   $("#empty").classList.toggle("hidden", appsCache.length > 0);
   $("#apps").innerHTML = list.map(cardHtml).join("");
@@ -113,20 +134,44 @@ function cardHtml(v) {
       kaInfo = secs <= 5 ? "Yeniden başlatılıyor…" : `${fmtTime(v.keepAliveNextStart)} saatinde yeniden başlatılacak (${secs} sn)`;
     }
   }
+  const er = errorRunOf(v);
+  let errPanel = "", errBadge = "";
+  if (er) {
+    const n = er.errorCount - (er.acknowledgedErrors || 0);
+    const lastErr = (er.recentErrors || []).at(-1);
+    const live = er.status === "Running";
+    errBadge = `<span class="badge b-err-strong">${WARN_ICON} ${n} hata</span>`;
+    errPanel = `
+    <div class="err-panel" role="alert">
+      <div class="err-head">
+        ${WARN_ICON}
+        <strong>${n} hata satırı${er.acknowledgedErrors ? " (yeni)" : ""}</strong>
+        <span>${live ? "· uygulama çalışmaya devam ediyor" : "· son çalıştırmada"}</span>
+        <span class="err-time">son: ${fmtTime(er.lastErrorAt)}</span>
+      </div>
+      ${lastErr ? `<code class="err-line" title="${esc(lastErr.line)}">${esc(lastErr.line)}</code>` : ""}
+      <div class="err-actions">
+        <button class="btn sm err-btn" data-act="errors" data-run="${er.id}">Hataları gör</button>
+        <button class="btn sm ghost" data-act="ack" data-run="${er.id}" title="Uyarıyı kapat. Yeni hata gelirse tekrar görünür.">Gördüm</button>
+      </div>
+    </div>`;
+  }
+
   const flags = [];
   if (!a.keepAlive && a.resumeInterrupted) flags.push("Yarıda kalırsa yeniden başlar");
   if (!a.keepAlive && a.runMissed && a.schedule && a.schedule.type !== "None") flags.push("Kaçırılanı telafi eder");
   if (flags.length && (a.resumeInterrupted || a.runMissed)) flags.push(`en fazla ${a.recoveryWindowHours ?? 6} sa`);
 
   return `
-  <article class="card ${a.enabled ? "" : "disabled"}" data-id="${esc(a.id)}">
+  <article class="card ${a.enabled ? "" : "disabled"} ${er ? "has-errors" : ""}" data-id="${esc(a.id)}">
     <div class="card-head">
       <div>
         <h3>${esc(a.name)}</h3>
         <div class="id">${esc(a.id)}</div>
       </div>
-      <div>${kaBadge} ${statusBadge} ${enabledBadge}</div>
+      <div class="badges">${errBadge} ${kaBadge} ${statusBadge} ${enabledBadge}</div>
     </div>
+    ${errPanel}
     ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ""}
     <div class="path">${esc(a.path)} ${esc(a.arguments)}</div>
     <dl class="meta">
@@ -171,6 +216,11 @@ $("#apps").addEventListener("click", async (e) => {
       toast("Durdurma isteği gönderildi");
     } else if (act === "log") {
       openLog(btn.dataset.run, view.app.name);
+    } else if (act === "errors") {
+      openLog(btn.dataset.run, view.app.name, { errorsOnly: true });
+    } else if (act === "ack") {
+      await api(`/api/runs/${btn.dataset.run}/ack`, { method: "POST" });
+      toast("Uyarı kapatıldı. Yeni hata gelirse tekrar görünür.");
     } else if (act === "history") {
       openHistory(id, view.app.name);
     } else if (act === "edit") {
@@ -189,6 +239,7 @@ $("#apps").addEventListener("click", async (e) => {
 });
 
 $("#search").addEventListener("input", render);
+$("#errChip").addEventListener("click", () => { filterErrors = !filterErrors; render(); });
 
 // ------------------------------------------------------------------ form
 const form = $("#appForm");
@@ -271,6 +322,12 @@ function openForm(app) {
   form.timeoutMinutes.value = a.timeoutMinutes ?? 0;
   form.enabled.checked = a.enabled !== false;
   form.allowConcurrentRuns.checked = !!a.allowConcurrentRuns;
+  form.detectErrors.checked = a.detectErrors !== false;
+  form.stdErrIsError.value = a.stdErrIsError == null ? "" : String(a.stdErrIsError);
+  form.errorPatterns.value = (a.errorPatterns ?? []).join("\n");
+  form.ignoreErrorPatterns.value = (a.ignoreErrorPatterns ?? []).join("\n");
+  $("#errDetails").open = !!((a.errorPatterns ?? []).length || (a.ignoreErrorPatterns ?? []).length
+    || a.detectErrors === false || a.stdErrIsError != null);
   form.keepAlive.checked = !!a.keepAlive;
   form.keepAliveDelaySeconds.value = a.keepAliveDelaySeconds ?? 10;
   form.resumeInterrupted.checked = !!a.resumeInterrupted;
@@ -308,6 +365,10 @@ form.addEventListener("submit", async (e) => {
     workingDirectory: form.workingDirectory.value.trim() || null,
     enabled: form.enabled.checked,
     allowConcurrentRuns: form.keepAlive.checked ? false : form.allowConcurrentRuns.checked,
+    detectErrors: form.detectErrors.checked,
+    stdErrIsError: form.stdErrIsError.value === "" ? null : form.stdErrIsError.value === "true",
+    errorPatterns: form.errorPatterns.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean),
+    ignoreErrorPatterns: form.ignoreErrorPatterns.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean),
     keepAlive: form.keepAlive.checked,
     keepAliveDelaySeconds: parseInt(form.keepAliveDelaySeconds.value || "10", 10),
     resumeInterrupted: form.resumeInterrupted.checked,
@@ -344,7 +405,7 @@ async function openHistory(appId, name) {
         ${appId ? "" : `<td>${esc(r.appName)}</td>`}
         <td>${TRIGGER_TR[r.trigger] ?? r.trigger}</td>
         <td>${esc(r.startedBy ?? "–")}${r.stoppedBy ? `<br><small>Durduran: ${esc(r.stoppedBy)}</small>` : ""}</td>
-        <td><span class="badge b-${r.status}">${STATUS_TR[r.status] ?? r.status}</span>${r.error ? `<br><small>${esc(r.error)}</small>` : ""}</td>
+        <td><span class="badge b-${r.status}">${STATUS_TR[r.status] ?? r.status}</span>${r.error ? `<br><small>${esc(r.error)}</small>` : ""}${r.errorCount ? `<br><small class="err-txt">${r.errorCount} hata satırı${r.acknowledgedBy ? ` · gören: ${esc(r.acknowledgedBy)}` : ""}</small>` : ""}</td>
         <td>${duration(r.startedAt, r.endedAt)}</td>
         <td>${r.exitCode ?? "–"}</td>
         <td><button class="btn sm" data-run="${r.id}" data-name="${esc(r.appName)}">Log</button></td>
@@ -361,16 +422,35 @@ $("#btnHistoryAll").addEventListener("click", () => openHistory(null));
 
 // ------------------------------------------------------------------ log
 let logTimer;
-async function openLog(runId, name) {
-  $("#logTitle").textContent = `Log – ${name}`;
+let logData = { lines: [], truncated: false };
+
+function renderLog() {
   const pre = $("#logContent");
-  pre.textContent = "yükleniyor…";
+  const only = $("#logErrorsOnly").checked;
+  const errCount = logData.lines.filter(l => l.e).length;
+  $("#logErrCount").innerHTML = errCount
+    ? `${WARN_ICON} ${errCount} hata satırı`
+    : "Hata satırı yok";
+  $("#logErrCount").classList.toggle("has", errCount > 0);
+
+  const lines = only ? logData.lines.filter(l => l.e) : logData.lines;
+  let html = logData.truncated && !only ? `<span class="ll-info">… (log kırpıldı, yalnızca son 512 KB gösteriliyor)</span>\n` : "";
+  html += lines.map(l => l.e ? `<span class="ll-err">${esc(l.t)}</span>` : esc(l.t)).join("\n");
+  if (only && lines.length === 0) html = `<span class="ll-info">Hata satırı yok.</span>`;
+  pre.innerHTML = html;
+  if ($("#logFollow").checked) pre.scrollTop = pre.scrollHeight;
+}
+
+async function openLog(runId, name, opts = {}) {
+  $("#logTitle").textContent = `Log – ${name}`;
+  $("#logErrorsOnly").checked = !!opts.errorsOnly;
+  logData = { lines: [], truncated: false };
+  $("#logContent").textContent = "yükleniyor…";
   $("#dlgLog").showModal();
 
   const load = async () => {
-    const res = await fetch(`/api/runs/${runId}/log`);
-    pre.textContent = await res.text();
-    if ($("#logFollow").checked) pre.scrollTop = pre.scrollHeight;
+    logData = await api(`/api/runs/${runId}/lines`);
+    renderLog();
     const runs = await api(`/api/runs?take=1000`);
     const rec = runs.find(r => r.id === runId);
     if (!rec || rec.status !== "Running") clearInterval(logTimer);
@@ -379,6 +459,7 @@ async function openLog(runId, name) {
   await load();
   logTimer = setInterval(load, 2000);
 }
+$("#logErrorsOnly").addEventListener("change", renderLog);
 $("#dlgLog").addEventListener("close", () => clearInterval(logTimer));
 
 // ------------------------------------------------------------------ ham config

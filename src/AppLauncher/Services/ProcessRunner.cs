@@ -27,9 +27,14 @@ public sealed class ProcessRunner
     private readonly Encoding _outputEncoding;
     private readonly IHostApplicationLifetime _lifetime;
 
+    private readonly IOptionsMonitor<LauncherOptions> _optionsMonitor;
+    private const int MaxRecentErrors = 10;
+    private const int MaxErrorLineLength = 400;
+
     public ProcessRunner(RunHistory history, IOptions<LauncherOptions> options, ILogger<ProcessRunner> log,
-        IHostApplicationLifetime lifetime)
+        IHostApplicationLifetime lifetime, IOptionsMonitor<LauncherOptions> optionsMonitor)
     {
+        _optionsMonitor = optionsMonitor;
         _history = history;
         _lifetime = lifetime;
         _log = log;
@@ -84,8 +89,19 @@ public sealed class ProcessRunner
             WriteLine(writer, $"=== Çalışma klasörü: {psi.WorkingDirectory}");
 
             var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
-            process.OutputDataReceived += (_, e) => { if (e.Data is not null) WriteLine(writer, e.Data); };
-            process.ErrorDataReceived += (_, e) => { if (e.Data is not null) WriteLine(writer, "[ERR] " + e.Data); };
+            var detector = ErrorDetector.Create(_optionsMonitor.CurrentValue.ErrorDetection, app);
+            process.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data is null) return;
+                WriteLine(writer, e.Data);
+                if (detector.IsError(e.Data, stderr: false)) RecordError(record, e.Data);
+            };
+            process.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data is null) return;
+                WriteLine(writer, "[ERR] " + e.Data);
+                if (detector.IsError(e.Data, stderr: true)) RecordError(record, e.Data);
+            };
 
             try
             {
@@ -182,7 +198,7 @@ public sealed class ProcessRunner
             rec.Status = active.StopRequested ? RunStatus.Stopped
                        : shuttingDown ? RunStatus.Interrupted
                        : active.TimedOut ? RunStatus.TimedOut
-                       : rec.ExitCode == 0 ? RunStatus.Succeeded
+                       : rec.ExitCode == 0 ? (rec.ErrorCount > 0 ? RunStatus.CompletedWithErrors : RunStatus.Succeeded)
                        : RunStatus.Failed;
             if (rec.Status == RunStatus.Interrupted)
             {
@@ -206,6 +222,32 @@ public sealed class ProcessRunner
             _active.TryRemove(rec.Id, out _);
             _history.Updated(rec);
             _log.LogInformation("{App} bitti: {Status} ({Exit}).", rec.AppId, rec.Status, rec.ExitCode);
+        }
+    }
+
+    /// <summary>Çıktıda hata satırı görüldüğünde çağrılır (çıktı okuma iş parçacığından).</summary>
+    private void RecordError(RunRecord rec, string line)
+    {
+        bool first;
+        lock (rec)
+        {
+            var now = DateTimeOffset.Now;
+            first = rec.ErrorCount == 0;
+            rec.ErrorCount++;
+            rec.FirstErrorAt ??= now;
+            rec.LastErrorAt = now;
+
+            var text = line.Length > MaxErrorLineLength ? line[..MaxErrorLineLength] + "…" : line;
+            // Listeyi yerinde değiştirmek yerine yenisini ata: aynı anda JSON'a yazılırken hata olmasın.
+            var list = (rec.RecentErrors ?? new List<ErrorLine>()).TakeLast(MaxRecentErrors - 1).ToList();
+            list.Add(new ErrorLine { At = now, Line = text.Trim() });
+            rec.RecentErrors = list;
+        }
+
+        if (first)
+        {
+            _log.LogWarning("{App} çalışırken çıktısında hata görüldü: {Line}", rec.AppId, line);
+            _history.Updated(rec);
         }
     }
 

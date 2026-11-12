@@ -84,6 +84,7 @@ Her dosya için ilgili klasöre sağ tık → **Add → New Item**. C# dosyalar�
 | `Services/ScheduleHelper.cs` | `src/AppLauncher/Services/ScheduleHelper.cs` |
 | `Services/SchedulerService.cs` | `src/AppLauncher/Services/SchedulerService.cs` |
 | `Services/StateStore.cs` | `src/AppLauncher/Services/StateStore.cs` |
+| `Services/ErrorDetector.cs` | `src/AppLauncher/Services/ErrorDetector.cs` |
 | `Services/KeepAlivePolicy.cs` | `src/AppLauncher/Services/KeepAlivePolicy.cs` |
 | `wwwroot/index.html` | `src/AppLauncher/wwwroot/index.html` |
 | `wwwroot/style.css` | `src/AppLauncher/wwwroot/style.css` |
